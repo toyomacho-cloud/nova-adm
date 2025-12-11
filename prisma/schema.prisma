@@ -1,0 +1,540 @@
+// This is your Prisma schema file for multi-tenant architecture
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// MULTI-TENANT & AUTH
+// ============================================
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  rif         String   @unique // RIF (Registro de Información Fiscal)
+  address     String?
+  phone       String?
+  email       String?
+  logo        String?
+  isActive    Boolean  @default(true)
+  
+  // Special taxpayer status
+  isSpecialTaxpayer Boolean @default(false)
+  specialTaxpayerCode String?
+  
+  // Tax configuration
+  ivaRate     Float    @default(16.0) // Venezuelan IVA rate
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  users            User[]
+  customers        Customer[]
+  vendors          Vendor[]
+  paymentMethods   PaymentMethod[]
+  cashRegisters    CashRegister[]
+  sales            Sale[]
+  purchases        Purchase[]
+  ivaWithholdings  IVAWithholding[]
+  islrWithholdings ISLRWithholding[]
+  municipalWithholdings MunicipalWithholding[]
+  bankAccounts     BankAccount[]
+  reconciliations  Reconciliation[]
+  
+  @@index([rif])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  companyId     String
+  email         String    @unique
+  name          String
+  password      String
+  role          UserRole  @default(USER)
+  isActive      Boolean   @default(true)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Activity tracking
+  cashTransactions CashTransaction[]
+  sales            Sale[]
+  purchases        Purchase[]
+  
+  @@index([companyId])
+  @@index([email])
+}
+
+enum UserRole {
+  ADMIN
+  ACCOUNTANT
+  CASHIER
+  USER
+  VIEWER
+}
+
+// ============================================
+// CUSTOMERS & VENDORS
+// ============================================
+
+model Customer {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  rif         String
+  address     String?
+  phone       String?
+  email       String?
+  
+  isSpecialTaxpayer Boolean @default(false)
+  
+  creditLimit Float?   @default(0)
+  balance     Float    @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sales       Sale[]
+  
+  @@index([companyId])
+  @@index([rif])
+}
+
+model Vendor {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  rif         String
+  address     String?
+  phone       String?
+  email       String?
+  
+  isSpecialTaxpayer Boolean @default(false)
+  withholdingAgent Boolean @default(false)
+  
+  balance     Float    @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchases   Purchase[]
+  
+  @@index([companyId])
+  @@index([rif])
+}
+
+// ============================================
+// PAYMENT METHODS
+// ============================================
+
+model PaymentMethod {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  type        PaymentType
+  isActive    Boolean  @default(true)
+  
+  bankAccountId String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
+  
+  salePayments     SalePayment[]
+  purchasePayments PurchasePayment[]
+  cashTransactions CashTransaction[]
+  
+  @@index([companyId])
+}
+
+enum PaymentType {
+  CASH
+  BANK_TRANSFER
+  DEBIT_CARD
+  CREDIT_CARD
+  CHECK
+  MOBILE_PAYMENT
+  OTHER
+}
+
+model BankAccount {
+  id          String   @id @default(cuid())
+  companyId   String
+  bankName    String
+  accountNumber String
+  accountType String
+  currency    String   @default("VES")
+  balance     Float    @default(0)
+  
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  paymentMethods   PaymentMethod[]
+  reconciliations  Reconciliation[]
+  
+  @@index([companyId])
+}
+
+// ============================================
+// CASH REGISTER (CAJA)
+// ============================================
+
+model CashRegister {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  location    String?
+  
+  isActive    Boolean  @default(true)
+  
+  openingBalance Float  @default(0)
+  closingBalance Float?
+  
+  openedAt    DateTime?
+  closedAt    DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions CashTransaction[]
+  
+  @@index([companyId])
+}
+
+model CashTransaction {
+  id              String   @id @default(cuid())
+  cashRegisterId  String
+  companyId       String
+  userId          String
+  
+  type            CashTransactionType
+  amount          Float
+  description     String
+  reference       String?
+  
+  paymentMethodId String
+  
+  createdAt       DateTime @default(now())
+  
+  cashRegister    CashRegister @relation(fields: [cashRegisterId], references: [id])
+  user            User @relation(fields: [userId], references: [id])
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  
+  @@index([cashRegisterId])
+  @@index([companyId])
+  @@index([createdAt])
+}
+
+enum CashTransactionType {
+  OPENING
+  CASH_IN
+  CASH_OUT
+  SALE
+  EXPENSE
+  CLOSING
+}
+
+// ============================================
+// SALES (LIBRO DE VENTAS)
+// ============================================
+
+model Sale {
+  id              String   @id @default(cuid())
+  companyId       String
+  customerId      String
+  userId          String
+  
+  invoiceNumber   String
+  invoiceDate     DateTime
+  
+  subtotal        Float
+  taxAmount       Float    // IVA
+  taxRate         Float
+  total           Float
+  
+  status          InvoiceStatus @default(PENDING)
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer        Customer @relation(fields: [customerId], references: [id])
+  user            User @relation(fields: [userId], references: [id])
+  
+  items           SaleItem[]
+  payments        SalePayment[]
+  ivaWithholdings IVAWithholding[]
+  
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId])
+  @@index([customerId])
+  @@index([invoiceDate])
+}
+
+model SaleItem {
+  id          String   @id @default(cuid())
+  saleId      String
+  
+  description String
+  quantity    Float
+  unitPrice   Float
+  subtotal    Float
+  taxAmount   Float
+  total       Float
+  
+  sale        Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  
+  @@index([saleId])
+}
+
+model SalePayment {
+  id              String   @id @default(cuid())
+  saleId          String
+  paymentMethodId String
+  
+  amount          Float
+  paymentDate     DateTime
+  reference       String?
+  
+  createdAt       DateTime @default(now())
+  
+  sale            Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  
+  @@index([saleId])
+}
+
+// ============================================
+// PURCHASES (LIBRO DE COMPRAS)
+// ============================================
+
+model Purchase {
+  id              String   @id @default(cuid())
+  companyId       String
+  vendorId        String
+  userId          String
+  
+  invoiceNumber   String
+  controlNumber   String?  // Número de control
+  invoiceDate     DateTime
+  
+  subtotal        Float
+  taxAmount       Float    // IVA
+  taxRate         Float
+  total           Float
+  
+  status          InvoiceStatus @default(PENDING)
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vendor          Vendor @relation(fields: [vendorId], references: [id])
+  user            User @relation(fields: [userId], references: [id])
+  
+  items           PurchaseItem[]
+  payments        PurchasePayment[]
+  ivaWithholdings IVAWithholding[]
+  
+  @@unique([companyId, invoiceNumber, vendorId])
+  @@index([companyId])
+  @@index([vendorId])
+  @@index([invoiceDate])
+}
+
+model PurchaseItem {
+  id          String   @id @default(cuid())
+  purchaseId  String
+  
+  description String
+  quantity    Float
+  unitPrice   Float
+  subtotal    Float
+  taxAmount   Float
+  total       Float
+  
+  purchase    Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  
+  @@index([purchaseId])
+}
+
+model PurchasePayment {
+  id              String   @id @default(cuid())
+  purchaseId      String
+  paymentMethodId String
+  
+  amount          Float
+  paymentDate     DateTime
+  reference       String?
+  
+  createdAt       DateTime @default(now())
+  
+  purchase        Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  
+  @@index([purchaseId])
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+  OVERDUE
+}
+
+// ============================================
+// TAX WITHHOLDINGS
+// ============================================
+
+model IVAWithholding {
+  id              String   @id @default(cuid())
+  companyId       String
+  
+  receiptNumber   String   // Número de comprobante
+  receiptDate     DateTime
+  
+  // Reference to sale or purchase
+  saleId          String?
+  purchaseId      String?
+  
+  baseAmount      Float    // Base imponible
+  withholdingRate Float    // Porcentaje de retención
+  withholdingAmount Float
+  
+  status          WithholdingStatus @default(PENDING)
+  
+  // File exports
+  txtGenerated    Boolean  @default(false)
+  xmlGenerated    Boolean  @default(false)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sale            Sale? @relation(fields: [saleId], references: [id])
+  purchase        Purchase? @relation(fields: [purchaseId], references: [id])
+  
+  @@unique([companyId, receiptNumber])
+  @@index([companyId])
+  @@index([receiptDate])
+}
+
+model ISLRWithholding {
+  id              String   @id @default(cuid())
+  companyId       String
+  
+  receiptNumber   String
+  receiptDate     DateTime
+  
+  beneficiaryName String
+  beneficiaryRif  String
+  
+  concept         String
+  baseAmount      Float
+  withholdingRate Float
+  withholdingAmount Float
+  
+  status          WithholdingStatus @default(PENDING)
+  
+  txtGenerated    Boolean  @default(false)
+  xmlGenerated    Boolean  @default(false)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@unique([companyId, receiptNumber])
+  @@index([companyId])
+  @@index([receiptDate])
+}
+
+model MunicipalWithholding {
+  id              String   @id @default(cuid())
+  companyId       String
+  
+  receiptNumber   String
+  receiptDate     DateTime
+  
+  municipality    String
+  beneficiaryName String
+  beneficiaryRif  String
+  
+  concept         String
+  baseAmount      Float
+  withholdingRate Float
+  withholdingAmount Float
+  
+  status          WithholdingStatus @default(PENDING)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@unique([companyId, receiptNumber])
+  @@index([companyId])
+  @@index([receiptDate])
+}
+
+enum WithholdingStatus {
+  PENDING
+  REPORTED
+  PAID
+  CANCELLED
+}
+
+// ============================================
+// RECONCILIATIONS
+// ============================================
+
+model Reconciliation {
+  id              String   @id @default(cuid())
+  companyId       String
+  bankAccountId   String
+  
+  periodStart     DateTime
+  periodEnd       DateTime
+  
+  bankBalance     Float
+  bookBalance     Float
+  difference      Float
+  
+  status          ReconciliationStatus @default(IN_PROGRESS)
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankAccount     BankAccount @relation(fields: [bankAccountId], references: [id])
+  
+  @@index([companyId])
+  @@index([bankAccountId])
+}
+
+enum ReconciliationStatus {
+  IN_PROGRESS
+  COMPLETED
+  REVIEWED
+}
