@@ -30,10 +30,44 @@ export default function RegisterPage() {
         e.preventDefault()
         setIsLoading(true)
 
-        // TODO: Implement registration logic
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        if (formData.password !== formData.confirmPassword) {
+            alert('Las contraseñas no coinciden')
+            setIsLoading(false)
+            return
+        }
 
-        setIsLoading(false)
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    companyName: formData.companyName,
+                    rif: formData.rif,
+                    name: formData.name,
+                    email: formData.email,
+                    password: formData.password,
+                    phone: formData.phone
+                }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Error al registrar')
+            }
+
+            // Success
+            alert('¡Registro exitoso! Ahora puedes iniciar sesión.')
+            window.location.href = '/auth/login'
+
+        } catch (error) {
+            console.error(error)
+            alert(error instanceof Error ? error.message : 'Error al registrar empresa')
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
