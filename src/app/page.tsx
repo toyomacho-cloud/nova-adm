@@ -38,16 +38,23 @@ export default function HomePage() {
                         {/* CTA Buttons */}
                         <div className="flex flex-col sm:flex-row gap-4 animate-in">
                             <Link
-                                href="/auth/login"
+                                href="/dashboard"
                                 className="btn-gradient px-8 py-4 rounded-xl text-lg font-semibold flex items-center gap-2 group"
                             >
-                                Iniciar Sesión
+                                Ver Demo
                                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                             </Link>
 
                             <Link
-                                href="/auth/register"
+                                href="/auth/login"
                                 className="px-8 py-4 rounded-xl text-lg font-semibold bg-white/20 hover:bg-white/30 backdrop-blur-lg border border-white/30 transition-all duration-300 flex items-center gap-2"
+                            >
+                                Iniciar Sesión
+                            </Link>
+
+                            <Link
+                                href="/auth/register"
+                                className="px-8 py-4 rounded-xl text-lg font-semibold bg-white/10 hover:bg-white/20 backdrop-blur-lg border border-white/20 transition-all duration-300 flex items-center gap-2"
                             >
                                 Registrar Empresa
                             </Link>
