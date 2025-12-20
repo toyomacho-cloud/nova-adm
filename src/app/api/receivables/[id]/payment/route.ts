@@ -41,7 +41,7 @@ export async function POST(
             where: { saleId: params.id },
         })
 
-        const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
+        const totalPaid = existingPayments.reduce((sum: number, p: any) => sum + p.amount, 0)
         const newTotal = totalPaid + parseFloat(amountUSD)
 
         if (newTotal > sale.totalUSD) {

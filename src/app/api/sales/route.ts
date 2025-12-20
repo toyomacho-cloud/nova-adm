@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
                 status: 'COMPLETED',
                 notes: notes || null,
                 items: {
-                    create: validatedItems.map((item) => ({
+                    create: validatedItems.map((item: any) => ({
                         productId: item.productId,
                         description: item.description,
                         quantity: item.quantity,

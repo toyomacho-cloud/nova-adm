@@ -33,8 +33,8 @@ export async function GET(request: Request) {
 
         // Agrupar por moneda
         const grouped = {
-            USD: methods.filter(m => m.currency === 'USD'),
-            BS: methods.filter(m => m.currency === 'BS')
+            USD: methods.filter((m: any) => m.currency === 'USD'),
+            BS: methods.filter((m: any) => m.currency === 'BS')
         }
 
         return NextResponse.json({

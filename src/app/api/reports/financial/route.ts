@@ -63,18 +63,18 @@ export async function GET(req: NextRequest) {
         ])
 
         // Calculate metrics (using USD)
-        const totalRevenue = sales.reduce((sum, s) => sum + (s.totalUSD || 0), 0)
-        const totalCosts = purchases.reduce((sum, p) => sum + p.total, 0)
+        const totalRevenue = sales.reduce((sum: number, s: any) => sum + (s.totalUSD || 0), 0)
+        const totalCosts = purchases.reduce((sum: number, p: any) => sum + p.total, 0)
         const grossProfit = totalRevenue - totalCosts
 
-        const totalReceivables = receivables.reduce((sum, r) => sum + (r.totalUSD || 0), 0)
+        const totalReceivables = receivables.reduce((sum: number, r: any) => sum + (r.totalUSD || 0), 0)
 
         const inventoryValue = products.reduce(
-            (sum, p) => sum + p.stock * (p.priceUSD || 0),
+            (sum: number, p: any) => sum + p.stock * (p.priceUSD || 0),
             0
         )
 
-        const lowStockProducts = products.filter((p) => p.stock <= p.minStock)
+        const lowStockProducts = products.filter((p: any) => p.stock <= p.minStock)
 
         return NextResponse.json({
             success: true,
@@ -104,13 +104,13 @@ export async function GET(req: NextRequest) {
                 },
                 customers: {
                     total: customers.length,
-                    active: sales.length > 0 ? new Set(sales.map((s) => s.customerId)).size : 0,
+                    active: sales.length > 0 ? new Set(sales.map((s: any) => s.customerId)).size : 0,
                 },
             },
-            recentSales: sales.slice(0, 10).sort((a, b) =>
+            recentSales: sales.slice(0, 10).sort((a: any, b: any) =>
                 new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime()
             ),
-            recentPurchases: purchases.slice(0, 10).sort((a, b) =>
+            recentPurchases: purchases.slice(0, 10).sort((a: any, b: any) =>
                 new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime()
             ),
         })

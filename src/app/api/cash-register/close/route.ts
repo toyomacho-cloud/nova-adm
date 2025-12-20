@@ -36,7 +36,7 @@ export async function POST(request: Request) {
         let expectedUSD = cashRegister.openingBalanceUSD
         let expectedBS = cashRegister.openingBalanceBS
 
-        cashRegister.transactions.forEach(t => {
+        cashRegister.transactions.forEach((t: any) => {
             const isIncome = ['CASH_IN', 'SALE'].includes(t.type)
             const currency = t.paymentMethod?.currency || 'USD'
 

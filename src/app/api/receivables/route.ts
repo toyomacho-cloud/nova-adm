@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
         })
 
         // Transform to receivable format
-        const receivables = sales.map((sale) => ({
+        const receivables = sales.map((sale: any) => ({
             id: sale.id,
             invoiceNumber: sale.invoiceNumber,
             invoiceDate: sale.invoiceDate,

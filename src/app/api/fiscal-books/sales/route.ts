@@ -38,17 +38,17 @@ export async function GET(req: NextRequest) {
         // Calculate totals
         const totals = {
             transactions: sales.length,
-            subtotalUSD: sales.reduce((sum, s) => sum + (s.subtotalUSD || 0), 0),
-            taxUSD: sales.reduce((sum, s) => sum + (s.taxAmountUSD || 0), 0),
-            totalUSD: sales.reduce((sum, s) => sum + (s.totalUSD || 0), 0),
-            subtotalBS: sales.reduce((sum, s) => sum + (s.subtotalBS || 0), 0),
-            taxBS: sales.reduce((sum, s) => sum + (s.taxAmountBS || 0), 0),
-            totalBS: sales.reduce((sum, s) => sum + (s.totalBS || 0), 0),
+            subtotalUSD: sales.reduce((sum: number, s: any) => sum + (s.subtotalUSD || 0), 0),
+            taxUSD: sales.reduce((sum: number, s: any) => sum + (s.taxAmountUSD || 0), 0),
+            totalUSD: sales.reduce((sum: number, s: any) => sum + (s.totalUSD || 0), 0),
+            subtotalBS: sales.reduce((sum: number, s: any) => sum + (s.subtotalBS || 0), 0),
+            taxBS: sales.reduce((sum: number, s: any) => sum + (s.taxAmountBS || 0), 0),
+            totalBS: sales.reduce((sum: number, s: any) => sum + (s.totalBS || 0), 0),
         }
 
         // Group by customer
         const byCustomer: Record<string, any> = {}
-        sales.forEach((sale) => {
+        sales.forEach((sale: any) => {
             const key = sale.customer.rif
             if (!byCustomer[key]) {
                 byCustomer[key] = {

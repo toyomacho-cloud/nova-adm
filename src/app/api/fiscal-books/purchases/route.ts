@@ -31,13 +31,13 @@ export async function GET(req: NextRequest) {
 
         const totals = {
             transactions: purchases.length,
-            subtotal: purchases.reduce((sum, p) => sum + p.subtotal, 0),
-            tax: purchases.reduce((sum, p) => sum + p.taxAmount, 0),
-            total: purchases.reduce((sum, p) => sum + p.total, 0),
+            subtotal: purchases.reduce((sum: number, p: any) => sum + p.subtotal, 0),
+            tax: purchases.reduce((sum: number, p: any) => sum + p.taxAmount, 0),
+            total: purchases.reduce((sum: number, p: any) => sum + p.total, 0),
         }
 
         const byVendor: Record<string, any> = {}
-        purchases.forEach((purchase) => {
+        purchases.forEach((purchase: any) => {
             const key = purchase.vendor.rif
             if (!byVendor[key]) {
                 byVendor[key] = {

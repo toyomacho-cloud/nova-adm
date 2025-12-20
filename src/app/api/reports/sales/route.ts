@@ -50,13 +50,13 @@ export async function GET(req: NextRequest) {
         })
 
         // Calculate totals
-        const totalSalesUSD = sales.reduce((sum, s) => sum + s.totalUSD, 0)
-        const totalSalesBS = sales.reduce((sum, s) => sum + s.totalBS, 0)
+        const totalSalesUSD = sales.reduce((sum: number, s: any) => sum + s.totalUSD, 0)
+        const totalSalesBS = sales.reduce((sum: number, s: any) => sum + s.totalBS, 0)
         const transactionCount = sales.length
 
         // Group by payment method
         const byPaymentMethod: Record<string, { count: number; totalUSD: number; totalBS: number }> = {}
-        sales.forEach((sale) => {
+        sales.forEach((sale: any) => {
             const method = sale.paymentMethod.name
             if (!byPaymentMethod[method]) {
                 byPaymentMethod[method] = { count: 0, totalUSD: 0, totalBS: 0 }
@@ -68,8 +68,8 @@ export async function GET(req: NextRequest) {
 
         // Top products
         const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {}
-        sales.forEach((sale) => {
-            sale.items.forEach((item) => {
+        sales.forEach((sale: any) => {
+            sale.items.forEach((item: any) => {
                 const productId = item.productId || 'unknown'
                 const productName = item.description
 
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
 
         // Top customers
         const customerSales: Record<string, { name: string; count: number; revenue: number }> = {}
-        sales.forEach((sale) => {
+        sales.forEach((sale: any) => {
             const customerId = sale.customerId
             const customerName = sale.customer.name
 

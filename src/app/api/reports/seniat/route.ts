@@ -62,21 +62,21 @@ export async function GET(req: NextRequest) {
         const totals = {
             sales: {
                 count: sales.length,
-                subtotalUSD: sales.reduce((sum, s) => sum + s.subtotalUSD, 0),
-                taxUSD: sales.reduce((sum, s) => sum + s.taxAmountUSD, 0),
-                totalUSD: sales.reduce((sum, s) => sum + s.totalUSD, 0),
+                subtotalUSD: sales.reduce((sum: number, s: any) => sum + s.subtotalUSD, 0),
+                taxUSD: sales.reduce((sum: number, s: any) => sum + s.taxAmountUSD, 0),
+                totalUSD: sales.reduce((sum: number, s: any) => sum + s.totalUSD, 0),
             },
             iva: {
                 count: ivaWithholdings.length,
-                totalWithheld: ivaWithholdings.reduce((sum, w) => sum + w.withholdingAmount, 0),
+                totalWithheld: ivaWithholdings.reduce((sum: number, w: any) => sum + w.withholdingAmount, 0),
             },
             islr: {
                 count: islrWithholdings.length,
-                totalWithheld: islrWithholdings.reduce((sum, w) => sum + w.withholdingAmount, 0),
+                totalWithheld: islrWithholdings.reduce((sum: number, w: any) => sum + w.withholdingAmount, 0),
             },
             municipal: {
                 count: municipalWithholdings.length,
-                totalWithheld: municipalWithholdings.reduce((sum, w) => sum + w.withholdingAmount, 0),
+                totalWithheld: municipalWithholdings.reduce((sum: number, w: any) => sum + w.withholdingAmount, 0),
             },
         }
 

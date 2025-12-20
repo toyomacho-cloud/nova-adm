@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
                 pages: Math.ceil(total / limit),
             },
             filters: {
-                categories: categories.map((c) => ({
+                categories: categories.map((c: any) => ({
                     name: c.category,
                     count: c._count,
                 })),

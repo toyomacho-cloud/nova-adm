@@ -30,7 +30,7 @@ export async function GET(request: Request) {
         })
 
         // Calcular totales por moneda
-        const totals = transactions.reduce((acc, t) => {
+        const totals = transactions.reduce((acc: Record<string, number>, t: any) => {
             const isIncome = ['CASH_IN', 'SALE'].includes(t.type)
             const currency = t.paymentMethod?.currency || 'USD'
 
