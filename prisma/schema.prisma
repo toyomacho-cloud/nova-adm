@@ -5,9 +5,23 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("POSTGRES_URL") // uses connection pooling
-  directUrl = env("POSTGRES_URL") // uses a direct connection (fallback)
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// EXCHANGE RATES (BCV)
+// ============================================
+
+model ExchangeRate {
+  id          String   @id @default(cuid())
+  currency    String   // "USD", "EUR"
+  rate        Float    // 36.50
+  source      String   @default("BCV")
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  
+  @@index([currency, date])
 }
 
 // ============================================
@@ -38,6 +52,7 @@ model Company {
   users            User[]
   customers        Customer[]
   vendors          Vendor[]
+  products         Product[]
   paymentMethods   PaymentMethod[]
   cashRegisters    CashRegister[]
   sales            Sale[]
@@ -45,10 +60,13 @@ model Company {
   ivaWithholdings  IVAWithholding[]
   islrWithholdings ISLRWithholding[]
   municipalWithholdings MunicipalWithholding[]
+  casheaTransactions CasheaTransaction[]
   bankAccounts     BankAccount[]
   reconciliations  Reconciliation[]
+  onlineOrders     OnlineOrder[]
   
   @@index([rif])
+
 }
 
 model User {
@@ -57,7 +75,7 @@ model User {
   email         String    @unique
   name          String
   password      String
-  role          UserRole  @default(USER)
+  role          String    @default("USER") // ADMIN, ACCOUNTANT, CASHIER, USER, VIEWER
   isActive      Boolean   @default(true)
   
   createdAt     DateTime  @default(now())
@@ -66,6 +84,7 @@ model User {
   company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   
   // Activity tracking
+  cashRegisters    CashRegister[]
   cashTransactions CashTransaction[]
   sales            Sale[]
   purchases        Purchase[]
@@ -74,13 +93,7 @@ model User {
   @@index([email])
 }
 
-enum UserRole {
-  ADMIN
-  ACCOUNTANT
-  CASHIER
-  USER
-  VIEWER
-}
+// UserRole values: ADMIN, ACCOUNTANT, CASHIER, USER, VIEWER
 
 // ============================================
 // CUSTOMERS & VENDORS
@@ -135,6 +148,46 @@ model Vendor {
 }
 
 // ============================================
+// PRODUCTS (INVENTORY)
+// ============================================
+
+model Product {
+  id          String   @id @default(cuid())
+  companyId   String
+  
+  sku         String
+  name        String
+  description String?
+  category    String?
+  
+  // Dual Currency Pricing
+  priceUSD    Float
+  priceBS     Float
+  costUSD     Float?   @default(0)
+  costBS      Float?   @default(0)
+  
+  // Stock
+  stock       Int      @default(0)
+  minStock    Int      @default(5)
+  
+  isActive    Boolean  @default(true)
+  image       String?  // Product image URL or path
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  saleItems   SaleItem[]
+  purchaseItems PurchaseItem[]
+  onlineOrderItems OnlineOrderItem[]
+  
+  @@unique([companyId, sku])
+  @@index([companyId])
+  @@index([sku])
+  @@index([category])
+}
+
+// ============================================
 // PAYMENT METHODS
 // ============================================
 
@@ -142,33 +195,28 @@ model PaymentMethod {
   id          String   @id @default(cuid())
   companyId   String
   name        String
-  type        PaymentType
+  type        String // CASH, BANK_TRANSFER, DEBIT_CARD, CREDIT_CARD, CHECK, MOBILE_PAYMENT, OTHER, DIGITAL_TRANSFER, CRYPTO
+  currency    String @default("USD") // "USD" o "BS"
   isActive    Boolean  @default(true)
   
   bankAccountId String?
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
+  
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  cashTransactions CashTransaction[]
+  sales         Sale[]
+  salePayments SalePayment[]
+  purchasePayments PurchasePayment[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
-  
-  salePayments     SalePayment[]
-  purchasePayments PurchasePayment[]
-  cashTransactions CashTransaction[]
-  
   @@index([companyId])
+  @@index([currency])
+
 }
 
-enum PaymentType {
-  CASH
-  BANK_TRANSFER
-  DEBIT_CARD
-  CREDIT_CARD
-  CHECK
-  MOBILE_PAYMENT
-  OTHER
-}
+// PaymentType values: CASH, BANK_TRANSFER, DEBIT_CARD, CREDIT_CARD, CHECK, MOBILE_PAYMENT, OTHER
 
 model BankAccount {
   id          String   @id @default(cuid())
@@ -199,24 +247,36 @@ model BankAccount {
 model CashRegister {
   id          String   @id @default(cuid())
   companyId   String
-  name        String
-  location    String?
+  userId      String
   
-  isActive    Boolean  @default(true)
+  // Balances USD
+  openingBalanceUSD Float  @default(0)
+  closingBalanceUSD Float?
+  expectedBalanceUSD Float @default(0)
+  differenceUSD      Float?
   
-  openingBalance Float  @default(0)
-  closingBalance Float?
+  // Balances Bs
+  openingBalanceBS  Float  @default(0)
+  closingBalanceBS  Float?
+  expectedBalanceBS Float @default(0)
+  differenceBS      Float?
   
-  openedAt    DateTime?
+  // Tasa BCV al momento de apertura
+  bcvRate     Float
+  
+  openedAt    DateTime @default(now())
   closedAt    DateTime?
+  notes       String?
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
   transactions CashTransaction[]
   
   @@index([companyId])
+  @@index([userId])
 }
 
 model CashTransaction {
@@ -225,7 +285,7 @@ model CashTransaction {
   companyId       String
   userId          String
   
-  type            CashTransactionType
+  type            String // OPENING, CASH_IN, CASH_OUT, SALE, EXPENSE, CLOSING
   amount          Float
   description     String
   reference       String?
@@ -243,14 +303,7 @@ model CashTransaction {
   @@index([createdAt])
 }
 
-enum CashTransactionType {
-  OPENING
-  CASH_IN
-  CASH_OUT
-  SALE
-  EXPENSE
-  CLOSING
-}
+// CashTransactionType values: OPENING, CASH_IN, CASH_OUT, SALE, EXPENSE, CLOSING
 
 // ============================================
 // SALES (LIBRO DE VENTAS)
@@ -262,15 +315,27 @@ model Sale {
   customerId      String
   userId          String
   
+  saleNumber      String   // VEN-00001
   invoiceNumber   String
   invoiceDate     DateTime
   
-  subtotal        Float
-  taxAmount       Float    // IVA
-  taxRate         Float
-  total           Float
+  // Dual Currency Totals
+  subtotalUSD     Float
+  subtotalBS      Float
+  taxAmountUSD    Float    // IVA
+  taxAmountBS     Float
+  taxRate         Float    @default(16.0)
+  totalUSD        Float
+  totalBS         Float
   
-  status          InvoiceStatus @default(PENDING)
+  // Payment
+  paymentMethodId String
+  paymentStatus   String @default("PENDING") // PENDING, PARTIAL, PAID
+  
+  // BCV Rate used
+  bcvRate         Float
+  
+  status          String @default("COMPLETED") // COMPLETED, CANCELLED
   notes           String?
   
   createdAt       DateTime @default(now())
@@ -279,11 +344,16 @@ model Sale {
   company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer        Customer @relation(fields: [customerId], references: [id])
   user            User @relation(fields: [userId], references: [id])
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
   
   items           SaleItem[]
   payments        SalePayment[]
   ivaWithholdings IVAWithholding[]
+  islrWithholdings ISLRWithholding[]
+  municipalWithholdings MunicipalWithholding[]
+  casheaTransactions CasheaTransaction[]
   
+  @@unique([companyId, saleNumber])
   @@unique([companyId, invoiceNumber])
   @@index([companyId])
   @@index([customerId])
@@ -293,17 +363,26 @@ model Sale {
 model SaleItem {
   id          String   @id @default(cuid())
   saleId      String
+  productId   String?
   
   description String
   quantity    Float
-  unitPrice   Float
-  subtotal    Float
-  taxAmount   Float
-  total       Float
+  
+  // Dual Currency
+  unitPriceUSD Float
+  unitPriceBS  Float
+  subtotalUSD  Float
+  subtotalBS   Float
+  taxAmountUSD Float
+  taxAmountBS  Float
+  totalUSD     Float
+  totalBS      Float
   
   sale        Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id])
   
   @@index([saleId])
+  @@index([productId])
 }
 
 model SalePayment {
@@ -342,7 +421,7 @@ model Purchase {
   taxRate         Float
   total           Float
   
-  status          InvoiceStatus @default(PENDING)
+  status          String @default("PENDING") // PENDING, PARTIALLY_PAID, PAID, CANCELLED, OVERDUE
   notes           String?
   
   createdAt       DateTime @default(now())
@@ -365,17 +444,20 @@ model Purchase {
 model PurchaseItem {
   id          String   @id @default(cuid())
   purchaseId  String
+  productId   String
   
   description String
-  quantity    Float
+  quantity    Int
   unitPrice   Float
   subtotal    Float
   taxAmount   Float
   total       Float
   
-  purchase    Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  purchase    Purchase @relation(fields: [purchaseId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
   
   @@index([purchaseId])
+  @@index([productId])
 }
 
 model PurchasePayment {
@@ -395,13 +477,7 @@ model PurchasePayment {
   @@index([purchaseId])
 }
 
-enum InvoiceStatus {
-  PENDING
-  PARTIALLY_PAID
-  PAID
-  CANCELLED
-  OVERDUE
-}
+// InvoiceStatus values: PENDING, PARTIALLY_PAID, PAID, CANCELLED, OVERDUE
 
 // ============================================
 // TAX WITHHOLDINGS
@@ -422,7 +498,7 @@ model IVAWithholding {
   withholdingRate Float    // Porcentaje de retención
   withholdingAmount Float
   
-  status          WithholdingStatus @default(PENDING)
+  status          String @default("PENDING") // PENDING, REPORTED, PAID, CANCELLED
   
   // File exports
   txtGenerated    Boolean  @default(false)
@@ -443,6 +519,7 @@ model IVAWithholding {
 model ISLRWithholding {
   id              String   @id @default(cuid())
   companyId       String
+  saleId          String?
   
   receiptNumber   String
   receiptDate     DateTime
@@ -455,24 +532,26 @@ model ISLRWithholding {
   withholdingRate Float
   withholdingAmount Float
   
-  status          WithholdingStatus @default(PENDING)
+  status          String @default("PENDING")
   
   txtGenerated    Boolean  @default(false)
-  xmlGenerated    Boolean  @default(false)
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
   company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sale            Sale?    @relation(fields: [saleId], references: [id])
   
   @@unique([companyId, receiptNumber])
   @@index([companyId])
+  @@index([saleId])
   @@index([receiptDate])
 }
 
 model MunicipalWithholding {
   id              String   @id @default(cuid())
   companyId       String
+  saleId          String?
   
   receiptNumber   String
   receiptDate     DateTime
@@ -486,24 +565,21 @@ model MunicipalWithholding {
   withholdingRate Float
   withholdingAmount Float
   
-  status          WithholdingStatus @default(PENDING)
+  status          String @default("PENDING") // PENDING, REPORTED, PAID, CANCELLED
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
   company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sale            Sale?    @relation(fields: [saleId], references: [id])
   
   @@unique([companyId, receiptNumber])
   @@index([companyId])
+  @@index([saleId])
   @@index([receiptDate])
 }
 
-enum WithholdingStatus {
-  PENDING
-  REPORTED
-  PAID
-  CANCELLED
-}
+// WithholdingStatus values: PENDING, REPORTED, PAID, CANCELLED
 
 // ============================================
 // RECONCILIATIONS
@@ -521,7 +597,7 @@ model Reconciliation {
   bookBalance     Float
   difference      Float
   
-  status          ReconciliationStatus @default(IN_PROGRESS)
+  status          String @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, REVIEWED
   notes           String?
   
   createdAt       DateTime @default(now())
@@ -534,8 +610,105 @@ model Reconciliation {
   @@index([bankAccountId])
 }
 
-enum ReconciliationStatus {
-  IN_PROGRESS
-  COMPLETED
-  REVIEWED
+// ReconciliationStatus values: IN_PROGRESS, COMPLETED, REVIEWED
+
+// ============================================
+// E-COMMERCE ONLINE STORE
+// ============================================
+
+
+model OnlineOrder {
+  id              String   @id @default(cuid())
+  companyId       String
+  orderNumber     String   @unique
+  
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  customerRif     String?
+  
+  shippingAddress String
+  shippingCity    String
+  shippingState   String
+  shippingZip     String?
+  
+  subtotal        Float
+  shipping        Float
+  tax             Float
+  total           Float
+  
+  currency        String   @default("USD")
+  bcvRate         Float?
+  
+  paymentMethod   String
+  paymentStatus   String   @default("pending")
+  casheaPaymentId String?
+  
+  orderStatus     String   @default("pending")
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  company         Company  @relation(fields: [companyId], references: [id])
+  items           OnlineOrderItem[]
+  
+  @@index([companyId])
+  @@index([orderNumber])
+  @@index([customerEmail])
+  @@index([orderStatus])
+}
+
+model OnlineOrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String
+  
+  description String
+  sku         String?
+  quantity    Int
+  unitPrice   Float
+  subtotal    Float
+  
+  order       OnlineOrder @relation(fields: [orderId], references: [id])
+  product     Product     @relation(fields: [productId], references: [id])
+  
+  @@index([orderId])
+  @@index([productId])
+}
+
+// ============================================
+// CASHEA TRANSACTIONS
+// ============================================
+
+model CasheaTransaction {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+  
+  saleId        String?
+  sale          Sale?    @relation(fields: [saleId], references: [id])
+  
+  paymentId     String   @unique
+  reference     String
+  amount        Float
+  currency      String   @default("USD")
+  status        String   @default("pending")
+  
+  paymentUrl    String?
+  qrCode        String?
+  
+  commission    Float?
+  netAmount     Float?
+  
+  paidAt        DateTime?
+  expiresAt     DateTime?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([companyId])
+  @@index([saleId])
+  @@index([paymentId])
+  @@index([status])
 }

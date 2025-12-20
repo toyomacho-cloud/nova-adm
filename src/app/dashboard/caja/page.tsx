@@ -1,189 +1,309 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { DollarSign, Plus, X, TrendingUp, TrendingDown, Lock } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Badge } from '@/components/ui/Badge'
-import {
-    DollarSign,
-    Plus,
-    Minus,
-    Lock,
-    Unlock,
-    TrendingUp,
-    TrendingDown,
-    Receipt,
-} from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+
+interface CashRegister {
+    id: string
+    openingBalanceUSD: number
+    openingBalanceBS: number
+    expectedBalanceUSD: number
+    expectedBalanceBS: number
+    bcvRate: number
+    openedAt: string
+    closedAt: string | null
+    user: {
+        name: string
+    }
+}
 
 export default function CajaPage() {
-    const [cashRegisterOpen, setCashRegisterOpen] = useState(true)
-    const [showAddTransaction, setShowAddTransaction] = useState(false)
+    const [cashRegister, setCashRegister] = useState<CashRegister | null>(null)
+    const [showOpenModal, setShowOpenModal] = useState(false)
+    const [loading, setLoading] = useState(true)
+    const [bcvRate, setBcvRate] = useState(0)
+
+    // Form states
+    const [openingUSD, setOpeningUSD] = useState('')
+    const [openingBS, setOpeningBS] = useState('')
+
+    useEffect(() => {
+        fetchCashRegister()
+        fetchBCVRate()
+    }, [])
+
+    const fetchCashRegister = async () => {
+        try {
+            const res = await fetch('/api/cash-register')
+            const data = await res.json()
+            if (data.cashRegister) {
+                setCashRegister(data.cashRegister)
+            }
+        } catch (error) {
+            console.error('Error:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const fetchBCVRate = async () => {
+        try {
+            const res = await fetch('/api/bcv/rate')
+            const data = await res.json()
+            if (data.success) {
+                setBcvRate(data.rate)
+            }
+        } catch (error) {
+            console.error('Error:', error)
+        }
+    }
+
+    const handleOpenCashRegister = async () => {
+        try {
+            const res = await fetch('/api/cash-register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    openingBalanceUSD: parseFloat(openingUSD) || 0,
+                    openingBalanceBS: parseFloat(openingBS) || 0
+                })
+            })
+
+            if (res.ok) {
+                setShowOpenModal(false)
+                fetchCashRegister()
+                setOpeningUSD('')
+                setOpeningBS('')
+            }
+        } catch (error) {
+            console.error('Error:', error)
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="p-6">
+                <div className="animate-pulse space-y-4">
+                    <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+                    <div className="h-64 bg-gray-200 rounded"></div>
+                </div>
+            </div>
+        )
+    }
 
     return (
-        <div className="space-y-6 animate-in">
+        <div className="p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-display font-bold mb-2">Caja</h1>
+                    <h1 className="text-3xl font-bold mb-2">Caja</h1>
                     <p className="text-gray-600 dark:text-gray-400">
-                        Control de efectivo y transacciones
+                        Gestión de caja y ventas diarias
                     </p>
                 </div>
 
-                <Button
-                    variant={cashRegisterOpen ? 'danger' : 'primary'}
-                    onClick={() => setCashRegisterOpen(!cashRegisterOpen)}
-                >
-                    {cashRegisterOpen ? (
-                        <>
-                            <Lock className="w-5 h-5 mr-2" />
-                            Cerrar Caja
-                        </>
-                    ) : (
-                        <>
-                            <Unlock className="w-5 h-5 mr-2" />
-                            Abrir Caja
-                        </>
-                    )}
-                </Button>
+                {!cashRegister && (
+                    <Button onClick={() => setShowOpenModal(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Abrir Caja
+                    </Button>
+                )}
             </div>
 
-            {/* Status & Balance */}
-            <div className="grid md:grid-cols-3 gap-6">
-                <Card variant="glass" className="md:col-span-2">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-display font-semibold">
-                            Estado de Caja
-                        </h2>
-                        <Badge variant={cashRegisterOpen ? 'success' : 'danger'}>
-                            {cashRegisterOpen ? 'Abierta' : 'Cerrada'}
-                        </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="p-4 bg-gradient-to-br from-success-50 to-success-100 dark:from-success-900/20 dark:to-success-800/20 rounded-xl">
-                            <div className="text-sm text-success-700 dark:text-success-400 mb-1">
-                                Saldo Inicial
-                            </div>
-                            <div className="text-2xl font-bold text-success-900 dark:text-success-100">
-                                {formatCurrency(10000)}
-                            </div>
-                        </div>
-
-                        <div className="p-4 bg-gradient-to-br from-info-50 to-info-100 dark:from-info-900/20 dark:to-info-800/20 rounded-xl">
-                            <div className="text-sm text-info-700 dark:text-info-400 mb-1">
-                                Ingresos
-                            </div>
-                            <div className="text-2xl font-bold text-info-900 dark:text-info-100">
-                                {formatCurrency(45280.50)}
-                            </div>
-                        </div>
-
-                        <div className="p-4 bg-gradient-to-br from-warning-50 to-warning-100 dark:from-warning-900/20 dark:to-warning-800/20 rounded-xl">
-                            <div className="text-sm text-warning-700 dark:text-warning-400 mb-1">
-                                Egresos
-                            </div>
-                            <div className="text-2xl font-bold text-warning-900 dark:text-warning-100">
-                                {formatCurrency(12450.00)}
-                            </div>
-                        </div>
-
-                        <div className="p-4 bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 rounded-xl">
-                            <div className="text-sm text-primary-700 dark:text-primary-400 mb-1">
-                                Saldo Actual
-                            </div>
-                            <div className="text-2xl font-bold text-primary-900 dark:text-primary-100">
-                                {formatCurrency(42830.50)}
-                            </div>
-                        </div>
-                    </div>
+            {/* Estado de Caja */}
+            {!cashRegister ? (
+                <Card className="p-12 text-center">
+                    <Lock className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                    <h2 className="text-2xl font-bold mb-2">Caja Cerrada</h2>
+                    <p className="text-gray-600 dark:text-gray-400 mb-6">
+                        No hay una caja abierta actualmente
+                    </p>
+                    <Button onClick={() => setShowOpenModal(true)}>
+                        Abrir Caja del Día
+                    </Button>
                 </Card>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Balance USD */}
+                    <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                                <span className="text-2xl">💵</span>
+                                Dólares (USD)
+                            </h3>
+                            <TrendingUp className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-600 dark:text-gray-400">Apertura:</span>
+                                <span className="font-medium">${cashRegister.openingBalanceUSD.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-600 dark:text-gray-400">Esperado:</span>
+                                <span className="font-medium">${cashRegister.expectedBalanceUSD.toFixed(2)}</span>
+                            </div>
+                            <div className="pt-2 border-t">
+                                <div className="flex justify-between">
+                                    <span className="font-semibold">Balance Actual:</span>
+                                    <span className="text-2xl font-bold text-green-600">
+                                        ${cashRegister.expectedBalanceUSD.toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
 
-                <Card variant="glass">
-                    <h3 className="font-semibold mb-4">Acciones Rápidas</h3>
+                    {/* Balance BS */}
+                    <Card className="p-6 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                                <span className="text-2xl">💰</span>
+                                Bolívares (Bs)
+                            </h3>
+                            <TrendingDown className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-600 dark:text-gray-400">Apertura:</span>
+                                <span className="font-medium">Bs. {cashRegister.openingBalanceBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-600 dark:text-gray-400">Esperado:</span>
+                                <span className="font-medium">Bs. {cashRegister.expectedBalanceBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="pt-2 border-t">
+                                <div className="flex justify-between">
+                                    <span className="font-semibold">Balance Actual:</span>
+                                    <span className="text-2xl font-bold text-blue-600">
+                                        Bs. {cashRegister.expectedBalanceBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
 
-                    <div className="space-y-2">
-                        <Button
-                            variant="primary"
-                            className="w-full justify-start"
-                            onClick={() => setShowAddTransaction(true)}
-                        >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Entrada de Efectivo
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            className="w-full justify-start"
-                            onClick={() => setShowAddTransaction(true)}
-                        >
-                            <Minus className="w-4 h-4 mr-2" />
-                            Salida de Efectivo
-                        </Button>
-
-                        <Button variant="ghost" className="w-full justify-start">
-                            <Receipt className="w-4 h-4 mr-2" />
-                            Ver Recibo
-                        </Button>
-                    </div>
-                </Card>
-            </div>
-
-            {/* Transactions */}
-            <Card variant="glass">
-                <h2 className="text-xl font-display font-semibold mb-6">
-                    Transacciones de Hoy
-                </h2>
-
-                <div className="overflow-x-auto">
-                    <table className="table-modern">
-                        <thead>
-                            <tr>
-                                <th>Hora</th>
-                                <th>Tipo</th>
-                                <th>Descripción</th>
-                                <th>Método</th>
-                                <th className="text-right">Monto</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {transactions.map((transaction, index) => (
-                                <tr key={index}>
-                                    <td>{transaction.time}</td>
-                                    <td>
-                                        <div className="flex items-center gap-2">
-                                            {transaction.type === 'in' ? (
-                                                <TrendingUp className="w-4 h-4 text-success-600" />
-                                            ) : (
-                                                <TrendingDown className="w-4 h-4 text-danger-600" />
-                                            )}
-                                            <span>{transaction.type === 'in' ? 'Entrada' : 'Salida'}</span>
-                                        </div>
-                                    </td>
-                                    <td>{transaction.description}</td>
-                                    <td>
-                                        <Badge variant="default">{transaction.method}</Badge>
-                                    </td>
-                                    <td className={`text-right font-semibold ${transaction.type === 'in' ? 'text-success-600' : 'text-danger-600'
-                                        }`}>
-                                        {transaction.type === 'in' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    {/* Info */}
+                    <Card className="p-6 md:col-span-2">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Abierta por:</p>
+                                <p className="font-semibold">{cashRegister.user.name}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Fecha de apertura:</p>
+                                <p className="font-semibold">
+                                    {new Date(cashRegister.openedAt).toLocaleString('es-VE')}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Tasa BCV:</p>
+                                <p className="font-semibold">Bs. {cashRegister.bcvRate.toFixed(2)} / USD</p>
+                            </div>
+                        </div>
+                    </Card>
                 </div>
-            </Card>
+            )}
+
+            {/* Modal de Apertura */}
+            {showOpenModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <Card className="w-full max-w-md">
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-2xl font-bold">Abrir Caja</h2>
+                                <button
+                                    onClick={() => setShowOpenModal(false)}
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                {/* USD Input */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">
+                                        💵 Efectivo en USD
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        value={openingUSD}
+                                        onChange={(e) => setOpeningUSD(e.target.value)}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Monto en dólares efectivo
+                                    </p>
+                                </div>
+
+                                {/* BS Input */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">
+                                        💰 Efectivo en Bs
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        value={openingBS}
+                                        onChange={(e) => setOpeningBS(e.target.value)}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Monto en bolívares efectivo
+                                    </p>
+                                </div>
+
+                                {/* BCV Rate Display */}
+                                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                        Tasa BCV del día:
+                                    </p>
+                                    <p className="text-xl font-bold">
+                                        Bs. {bcvRate.toFixed(2)} / USD
+                                    </p>
+                                </div>
+
+                                {/* Totals */}
+                                {(openingUSD || openingBS) && (
+                                    <div className="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-4">
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                            Total equivalente:
+                                        </p>
+                                        <div className="space-y-1">
+                                            <p className="font-semibold">
+                                                ≈ ${(parseFloat(openingUSD || '0') + (parseFloat(openingBS || '0') / bcvRate)).toFixed(2)} USD
+                                            </p>
+                                            <p className="font-semibold">
+                                                ≈ Bs. {((parseFloat(openingUSD || '0') * bcvRate) + parseFloat(openingBS || '0')).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowOpenModal(false)}
+                                    className="flex-1"
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    onClick={handleOpenCashRegister}
+                                    className="flex-1"
+                                >
+                                    Abrir Caja ✓
+                                </Button>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+            )}
         </div>
     )
 }
-
-const transactions = [
-    { time: '14:30', type: 'in', description: 'Venta #125', method: 'Efectivo', amount: 15420.50 },
-    { time: '13:15', type: 'in', description: 'Venta #124', method: 'Transferencia', amount: 8750.00 },
-    { time: '12:00', type: 'out', description: 'Pago a proveedor', method: 'Efectivo', amount: 5200.00 },
-    { time: '11:30', type: 'in', description: 'Venta #123', method: 'Efectivo', amount: 12300.25 },
-    { time: '10:45', type: 'out', description: 'Gastos operativos', method: 'Efectivo', amount: 850.50 },
-]

@@ -3,6 +3,10 @@ import { hash } from 'bcryptjs'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 // Schema validation
 const registerSchema = z.object({
     companyName: z.string().min(2),
@@ -89,7 +93,7 @@ export async function POST(req: Request) {
     } catch (error) {
         if (error instanceof z.ZodError) {
             return NextResponse.json(
-                { message: 'Datos inválidos', errors: error.errors },
+                { message: 'Datos inválidos', errors: error.issues },
                 { status: 400 }
             )
         }

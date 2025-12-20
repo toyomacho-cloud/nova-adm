@@ -22,17 +22,48 @@ import {
     Moon,
     Sun,
     Bell,
+    Package,
+    BarChart3,
+    FileCheck,
+    Users,
+    ShoppingBag,
+    BookOpen,
+    PieChart,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { BCVWidget } from '@/components/BCVWidget'
+
 
 const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Clientes', href: '/dashboard/clientes', icon: User },
+    { name: 'Productos', href: '/dashboard/productos', icon: Package },
+    { name: 'POS', href: '/dashboard/pos', icon: ShoppingCart },
+    { name: 'Ventas', href: '/dashboard/ventas', icon: FileText },
+    { name: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
+    { name: 'SENIAT', href: '/dashboard/seniat', icon: FileCheck },
+    { name: 'CxC', href: '/dashboard/cuentas-por-cobrar', icon: TrendingUp },
+    { name: 'Proveedores', href: '/dashboard/proveedores', icon: Users },
+    { name: 'Compras', href: '/dashboard/compras', icon: ShoppingBag },
+    { name: 'Libros Fiscales', href: '/dashboard/libros-fiscales', icon: BookOpen },
+    { name: 'Financiero', href: '/dashboard/financiero', icon: PieChart },
+    { name: 'Cashea', href: '/dashboard/cashea', icon: CreditCard },
+    {
+        name: 'Retenciones',
+        href: '/dashboard/retenciones',
+        icon: Receipt,
+        children: [
+            { name: 'IVA', href: '/dashboard/retenciones/iva' },
+            { name: 'ISLR', href: '/dashboard/retenciones/islr' },
+            { name: 'Municipal', href: '/dashboard/retenciones/municipal' },
+        ]
+    },
     {
         name: 'Caja',
         href: '/dashboard/caja',
         icon: DollarSign,
         children: [
-            { name: 'Movimientos', href: '/dashboard/caja' },
+            { name: 'Ventas', href: '/dashboard/caja' },
             { name: 'Conciliación', href: '/dashboard/caja/reconciliacion' },
         ]
     },
@@ -184,21 +215,28 @@ function Sidebar({ pathname, onClose }: { pathname: string; onClose?: () => void
     }
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-            {/* Logo */}
-            <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-700">
-                <Link href="/dashboard" className="flex items-center gap-3">
+        <div className="flex h-full flex-col bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+            {/* Header with logo */}
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center shadow-md">
                         <Building className="w-6 h-6 text-white" />
                     </div>
-                    <span className="text-xl font-display font-bold text-gradient">NOVA-ADM</span>
-                </Link>
+                    <div>
+                        <h1 className="text-xl font-display font-bold text-gradient">NOVA-ADM</h1>
+                        <p className="text-xs text-gray-500">Sistema Administrativo</p>
+                    </div>
+                    {onClose && (
+                        <button onClick={onClose} className="ml-auto lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <X className="w-5 h-5" />
+                        </button>
+                    )}
+                </div>
+            </div>
 
-                {onClose && (
-                    <button onClick={onClose} className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                        <X className="w-5 h-5" />
-                    </button>
-                )}
+            {/* BCV Widget - Grande y prominente */}
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                <BCVWidget />
             </div>
 
             {/* Navigation */}

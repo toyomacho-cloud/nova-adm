@@ -8,6 +8,14 @@ const nextConfig = {
     },
     experimental: {
         optimizePackageImports: ['lucide-react'],
+        serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
+    },
+    // Prevent static optimization for pages that use database
+    typescript: {
+        ignoreBuildErrors: false,
+    },
+    eslint: {
+        ignoreDuringBuilds: false,
     },
 }
 

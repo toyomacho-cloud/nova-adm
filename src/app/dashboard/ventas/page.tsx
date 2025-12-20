@@ -1,192 +1,316 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
+import { useState, useEffect } from 'react'
+import { ShoppingCart, Eye, DollarSign, Calendar } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Badge } from '@/components/ui/Badge'
-import {
-    Plus,
-    Search,
-    Filter,
-    Download,
-    Eye,
-    FileText,
-} from 'lucide-react'
-import { formatCurrency, formatShortDate } from '@/lib/utils'
+
+interface Sale {
+    id: string
+    saleNumber: string
+    invoiceNumber: string
+    invoiceDate: string
+    totalUSD: number
+    totalBS: number
+    paymentStatus: string
+    status: string
+    customer: {
+        name: string
+        rif: string
+    }
+    paymentMethod: {
+        name: string
+        currency: string
+    }
+    items: {
+        id: string
+        description: string
+        quantity: number
+        unitPriceUSD: number
+        totalUSD: number
+    }[]
+}
 
 export default function VentasPage() {
-    const [searchTerm, setSearchTerm] = useState('')
+    const [sales, setSales] = useState<Sale[]>([])
+    const [loading, setLoading] = useState(true)
+    const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
+
+    useEffect(() => {
+        fetchSales()
+    }, [])
+
+    const fetchSales = async () => {
+        try {
+            setLoading(true)
+            const res = await fetch('/api/sales')
+            const data = await res.json()
+            if (data.success) {
+                setSales(data.sales)
+            }
+        } catch (error) {
+            console.error('Error fetching sales:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(value)
+    }
+
+    const formatDate = (dateString: string) => {
+        return new Date(dateString).toLocaleDateString('es-VE', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        })
+    }
+
+    // Calculate totals
+    const totalSalesUSD = sales.reduce((sum, sale) => sum + sale.totalUSD, 0)
+    const totalSalesBS = sales.reduce((sum, sale) => sum + sale.totalBS, 0)
 
     return (
-        <div className="space-y-6 animate-in">
+        <div className="p-6 space-y-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-display font-bold mb-2">Libro de Ventas</h1>
+                    <h1 className="text-3xl font-bold mb-2">Ventas</h1>
                     <p className="text-gray-600 dark:text-gray-400">
-                        Registro de todas tus ventas y facturaciones
+                        Historial de todas las ventas realizadas
                     </p>
                 </div>
-
-                <Link href="/dashboard/ventas/nueva">
-                    <Button variant="primary" size="lg">
-                        <Plus className="w-5 h-5 mr-2" />
-                        Nueva Venta
-                    </Button>
-                </Link>
+                <Button onClick={() => (window.location.href = '/dashboard/pos')}>
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Nueva Venta (POS)
+                </Button>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card variant="glass">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                                Total del Mes
-                            </p>
-                            <h3 className="text-2xl font-bold">{formatCurrency(125450.50)}</h3>
-                        </div>
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-success-500 to-success-600 flex items-center justify-center text-white">
-                            <FileText className="w-6 h-6" />
-                        </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                            Total Ventas
+                        </h3>
+                        <ShoppingCart className="w-5 h-5 text-blue-500" />
                     </div>
+                    <p className="text-3xl font-bold">{sales.length}</p>
+                    <p className="text-xs text-gray-500 mt-1">transacciones</p>
                 </Card>
 
-                <Card variant="glass">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                                IVA Cobrado
-                            </p>
-                            <h3 className="text-2xl font-bold">{formatCurrency(20072.08)}</h3>
-                        </div>
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-info-500 to-info-600 flex items-center justify-center text-white">
-                            <FileText className="w-6 h-6" />
-                        </div>
+                <Card className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                            Total en USD
+                        </h3>
+                        <DollarSign className="w-5 h-5 text-green-500" />
                     </div>
+                    <p className="text-3xl font-bold text-green-600">
+                        ${formatCurrency(totalSalesUSD)}
+                    </p>
                 </Card>
 
-                <Card variant="glass">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                                Facturas Emitidas
-                            </p>
-                            <h3 className="text-2xl font-bold">128</h3>
-                        </div>
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white">
-                            <FileText className="w-6 h-6" />
-                        </div>
+                <Card className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                            Total en Bs
+                        </h3>
+                        <DollarSign className="w-5 h-5 text-teal-500" />
                     </div>
+                    <p className="text-2xl font-bold text-teal-600">
+                        Bs. {formatCurrency(totalSalesBS)}
+                    </p>
                 </Card>
             </div>
 
-            {/* Filters */}
-            <Card variant="glass">
-                <div className="flex flex-col md:flex-row gap-4">
-                    <div className="flex-1">
-                        <Input
-                            placeholder="Buscar por cliente, factura..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            icon={<Search className="w-5 h-5" />}
-                        />
-                    </div>
-
-                    <Button variant="outline">
-                        <Filter className="w-4 h-4 mr-2" />
-                        Filtros
-                    </Button>
-
-                    <Button variant="outline">
-                        <Download className="w-4 h-4 mr-2" />
-                        Exportar TXT/XML
-                    </Button>
+            {/* Sales List */}
+            {loading ? (
+                <div className="text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                    <p className="mt-2 text-gray-600">Cargando ventas...</p>
                 </div>
-            </Card>
-
-            {/* Sales Table */}
-            <Card variant="glass">
-                <div className="overflow-x-auto">
-                    <table className="table-modern">
-                        <thead>
-                            <tr>
-                                <th>Factura</th>
-                                <th>Fecha</th>
-                                <th>Cliente</th>
-                                <th className="text-right">Subtotal</th>
-                                <th className="text-right">IVA</th>
-                                <th className="text-right">Total</th>
-                                <th>Estado</th>
-                                <th className="text-right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sales.map((sale, index) => (
-                                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                                    <td className="font-mono font-semibold">{sale.invoiceNumber}</td>
-                                    <td>{formatShortDate(sale.date)}</td>
-                                    <td>{sale.customer}</td>
-                                    <td className="text-right">{formatCurrency(sale.subtotal)}</td>
-                                    <td className="text-right">{formatCurrency(sale.tax)}</td>
-                                    <td className="text-right font-semibold">{formatCurrency(sale.total)}</td>
-                                    <td>
-                                        <Badge variant={
-                                            sale.status === 'paid' ? 'success' :
-                                                sale.status === 'pending' ? 'warning' :
-                                                    sale.status === 'partial' ? 'info' :
-                                                        'danger'
-                                        }>
-                                            {sale.status === 'paid' ? 'Pagada' :
-                                                sale.status === 'pending' ? 'Pendiente' :
-                                                    sale.status === 'partial' ? 'Parcial' :
-                                                        'Vencida'}
-                                        </Badge>
-                                    </td>
-                                    <td>
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                                                <Eye className="w-4 h-4" />
-                                            </button>
-                                            <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                                                <Download className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </td>
+            ) : sales.length === 0 ? (
+                <Card className="p-12 text-center">
+                    <ShoppingCart className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                    <h3 className="text-xl font-semibold mb-2">No hay ventas</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-6">
+                        Las ventas realizadas aparecerán aquí
+                    </p>
+                    <Button onClick={() => (window.location.href = '/dashboard/pos')}>
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        Hacer Primera Venta
+                    </Button>
+                </Card>
+            ) : (
+                <Card>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Factura
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Cliente
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Fecha
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Método
+                                    </th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Total USD
+                                    </th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Total Bs
+                                    </th>
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Estado
+                                    </th>
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Acciones
+                                    </th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Pagination */}
-                <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                        Mostrando 1 a 10 de 128 registros
+                            </thead>
+                            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                {sales.map((sale) => (
+                                    <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div>
+                                                <p className="text-sm font-medium">{sale.invoiceNumber}</p>
+                                                <p className="text-xs text-gray-500">{sale.saleNumber}</p>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div>
+                                                <p className="text-sm font-medium">{sale.customer.name}</p>
+                                                <p className="text-xs text-gray-500">{sale.customer.rif}</p>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            {formatDate(sale.invoiceDate)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">
+                                                {sale.paymentMethod.name}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-green-600">
+                                            ${formatCurrency(sale.totalUSD)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-gray-100">
+                                            Bs. {formatCurrency(sale.totalBS)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            <span className="text-xs px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
+                                                {sale.paymentStatus}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setSelectedSale(sale)}
+                                            >
+                                                <Eye className="w-4 h-4" />
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
+                </Card>
+            )}
 
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="sm">Anterior</Button>
-                        <Button variant="outline" size="sm">1</Button>
-                        <Button variant="primary" size="sm">2</Button>
-                        <Button variant="outline" size="sm">3</Button>
-                        <Button variant="outline" size="sm">Siguiente</Button>
-                    </div>
+            {/* Sale Detail Modal */}
+            {selectedSale && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-bold">{selectedSale.invoiceNumber}</h2>
+                                    <p className="text-sm text-gray-500">{selectedSale.saleNumber}</p>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedSale(null)}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                <div>
+                                    <p className="text-sm text-gray-500">Cliente</p>
+                                    <p className="font-medium">{selectedSale.customer.name}</p>
+                                    <p className="text-sm text-gray-500">{selectedSale.customer.rif}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Fecha</p>
+                                    <p className="font-medium">{formatDate(selectedSale.invoiceDate)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Método de Pago</p>
+                                    <p className="font-medium">{selectedSale.paymentMethod.name}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Estado</p>
+                                    <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
+                                        {selectedSale.paymentStatus}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                                <h3 className="font-semibold mb-3">Items</h3>
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-gray-200 dark:border-gray-700">
+                                            <th className="text-left py-2">Producto</th>
+                                            <th className="text-center py-2">Cant.</th>
+                                            <th className="text-right py-2">Precio</th>
+                                            <th className="text-right py-2">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {selectedSale.items.map((item) => (
+                                            <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800">
+                                                <td className="py-2">{item.description}</td>
+                                                <td className="text-center py-2">{item.quantity}</td>
+                                                <td className="text-right py-2">${formatCurrency(item.unitPriceUSD)}</td>
+                                                <td className="text-right py-2 font-medium">
+                                                    ${formatCurrency(item.totalUSD)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+
+                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                                    <div className="flex justify-between text-lg font-bold">
+                                        <span>TOTAL USD:</span>
+                                        <span className="text-green-600">${formatCurrency(selectedSale.totalUSD)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                                        <span>TOTAL Bs:</span>
+                                        <span>Bs. {formatCurrency(selectedSale.totalBS)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
                 </div>
-            </Card>
+            )}
         </div>
     )
 }
-
-const sales = [
-    { invoiceNumber: '00125', date: new Date('2024-12-10'), customer: 'Distribuidora El Sol C.A.', subtotal: 12500.00, tax: 2000.00, total: 14500.00, status: 'paid' },
-    { invoiceNumber: '00124', date: new Date('2024-12-10'), customer: 'Comercial ABC', subtotal: 8750.00, tax: 1400.00, total: 10150.00, status: 'pending' },
-    { invoiceNumber: '00123', date: new Date('2024-12-09'), customer: 'Importadora Luna S.A.', subtotal: 15420.50, tax: 2467.28, total: 17887.78, status: 'paid' },
-    { invoiceNumber: '00122', date: new Date('2024-12-09'), customer: 'Suministros Generales', subtotal: 6200.00, tax: 992.00, total: 7192.00, status: 'partial' },
-    { invoiceNumber: '00121', date: new Date('2024-12-08'), customer: 'Ferretería Central', subtotal: 9850.75, tax: 1576.12, total: 11426.87, status: 'paid' },
-    { invoiceNumber: '00120', date: new Date('2024-12-08'), customer: 'Materiales Construcción', subtotal: 18300.00, tax: 2928.00, total: 21228.00, status: 'overdue' },
-    { invoiceNumber: '00119', date: new Date('2024-12-07'), customer: 'Auto Partes Premium', subtotal: 11400.25, tax: 1824.04, total: 13224.29, status: 'paid' },
-    { invoiceNumber: '00118', date: new Date('2024-12-07'), customer: 'Electrónica Digital C.A.', subtotal: 22100.00, tax: 3536.00, total: 25636.00, status: 'paid' },
-]

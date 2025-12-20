@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { Mail, Lock, Building, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -11,15 +13,31 @@ export default function LoginPage() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [isLoading, setIsLoading] = useState(false)
+    const [error, setError] = useState('')
+    const router = useRouter()
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsLoading(true)
+        setError('')
 
-        // TODO: Implement authentication logic
-        await new Promise(resolve => setTimeout(resolve, 1500))
+        try {
+            const result = await signIn('credentials', {
+                email,
+                password,
+                redirect: false
+            })
 
-        setIsLoading(false)
+            if (result?.error) {
+                setError('Email o contraseña incorrectos')
+            } else {
+                router.push('/dashboard')
+            }
+        } catch (err) {
+            setError('Error al iniciar sesión')
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
@@ -68,6 +86,12 @@ export default function LoginPage() {
                         icon={<Lock className="w-5 h-5" />}
                         required
                     />
+
+                    {error && (
+                        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+                            {error}
+                        </div>
+                    )}
 
                     <div className="flex items-center justify-between text-sm">
                         <label className="flex items-center gap-2 cursor-pointer">
