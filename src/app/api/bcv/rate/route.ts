@@ -12,28 +12,44 @@ export async function GET() {
     let source = 'UNKNOWN'
     let lastUpdate = new Date().toISOString()
 
-    // API 1: bcvapi.tech (actualizada diariamente)
+    // API 1: ve.dolarapi.com (funcional y confiable)
     try {
-      const res1 = await fetch('https://bcvapi.tech/api/rates/bcv', {
+      const res1 = await fetch('https://ve.dolarapi.com/v1/dolares/oficial', {
         next: { revalidate: 3600 }
       })
       if (res1.ok) {
         const data = await res1.json()
-        usdRate = data.rates?.USD || data.USD || null
-        source = 'bcvapi.tech'
+        usdRate = data.promedio || data.venta || null
+        source = 've.dolarapi.com'
       }
     } catch (e) {
-      console.log('bcvapi.tech failed:', e)
+      console.log('ve.dolarapi.com failed:', e)
     }
 
-    // API 2: Fallback - PyDolarVe
+    // API 2: Fallback - bcvapi.tech
     if (!usdRate) {
       try {
-        const res2 = await fetch('https://pydolarve.org/api/v1/dollar?monitor=bcv', {
+        const res2 = await fetch('https://bcvapi.tech/api/rates/bcv', {
           next: { revalidate: 3600 }
         })
         if (res2.ok) {
           const data = await res2.json()
+          usdRate = data.rates?.USD || data.USD || null
+          source = 'bcvapi.tech'
+        }
+      } catch (e) {
+        console.log('bcvapi.tech failed:', e)
+      }
+    }
+
+    // API 3: Fallback - pydolarve.org
+    if (!usdRate) {
+      try {
+        const res3 = await fetch('https://pydolarve.org/api/v1/dollar?monitor=bcv', {
+          next: { revalidate: 3600 }
+        })
+        if (res3.ok) {
+          const data = await res3.json()
           usdRate = data.price || null
           source = 'pydolarve.org'
         }
@@ -60,7 +76,7 @@ export async function GET() {
       }
 
       // Último fallback: tasa hardcoded del día
-      usdRate = 276.57 // Tasa oficial BCV 17 dic 2025
+      usdRate = 53.50 // Tasa oficial BCV aproximada dic 2024
       source = 'FALLBACK'
     }
 
@@ -98,11 +114,14 @@ export async function GET() {
   } catch (error) {
     console.error('Error getting BCV rate:', error)
 
+    // IMPORTANTE: Devolver success: true con fallback para que el frontend lo muestre
     return NextResponse.json({
-      success: false,
-      error: 'No se pudo obtener la tasa',
-      rate: 276.57, // Tasa del día como fallback
+      success: true,
+      error: 'No se pudo obtener la tasa en tiempo real',
+      rate: 53.50, // Tasa aproximada como fallback
+      lastUpdate: new Date().toISOString(),
       source: 'HARDCODED_FALLBACK'
-    }, { status: 500 })
+    })
   }
 }
+
