@@ -76,7 +76,7 @@ export async function GET() {
       }
 
       // Último fallback: tasa hardcoded del día
-      usdRate = 53.50 // Tasa oficial BCV aproximada dic 2024
+      usdRate = 285.40 // Tasa oficial BCV 22 dic 2024
       source = 'FALLBACK'
     }
 
@@ -118,7 +118,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       error: 'No se pudo obtener la tasa en tiempo real',
-      rate: 53.50, // Tasa aproximada como fallback
+      rate: 285.40, // Tasa BCV 22 dic 2024 como fallback
       lastUpdate: new Date().toISOString(),
       source: 'HARDCODED_FALLBACK'
     })
