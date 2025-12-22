@@ -65,15 +65,11 @@ const navigation = [
             { name: 'IVA', href: '/dashboard/retenciones/iva' },
             { name: 'ISLR', href: '/dashboard/retenciones/islr' },
             { name: 'Municipal', href: '/dashboard/retenciones/municipal' },
+            { name: 'REPORTE RETENCIONES', href: '/dashboard/seniat' },
         ]
     },
-    { name: 'CxC', href: '/dashboard/cuentas-por-cobrar', icon: TrendingUp },
-    { name: 'CxP', href: '/dashboard/cuentas-por-pagar', icon: TrendingDown },
-    { name: 'Libros Fiscales', href: '/dashboard/libros-fiscales', icon: BookOpen },
     { name: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
-    { name: 'SENIAT', href: '/dashboard/seniat', icon: FileCheck },
     { name: 'Financiero', href: '/dashboard/financiero', icon: PieChart },
-    { name: 'Cashea', href: '/dashboard/cashea', icon: CreditCard },
     {
         name: 'Administración',
         href: '/dashboard/administracion',
@@ -81,6 +77,10 @@ const navigation = [
         children: [
             { name: 'Libro de Ventas', href: '/dashboard/ventas' },
             { name: 'Conciliación', href: '/dashboard/caja/reconciliacion' },
+            { name: 'Cuentas por Cobrar', href: '/dashboard/cuentas-por-cobrar' },
+            { name: 'Cuentas por Pagar', href: '/dashboard/cuentas-por-pagar' },
+            { name: 'Libros Fiscales', href: '/dashboard/libros-fiscales' },
+            { name: 'Cashea', href: '/dashboard/cashea' },
         ]
     },
     {
