@@ -38,16 +38,28 @@ const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Clientes', href: '/dashboard/clientes', icon: User },
     { name: 'Productos', href: '/dashboard/productos', icon: Package },
-    { name: 'POS', href: '/dashboard/pos', icon: ShoppingCart },
-    { name: 'Ventas', href: '/dashboard/ventas', icon: FileText },
-    { name: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
-    { name: 'SENIAT', href: '/dashboard/seniat', icon: FileCheck },
-    { name: 'CxC', href: '/dashboard/cuentas-por-cobrar', icon: TrendingUp },
+    {
+        name: 'Ventas',
+        href: '/dashboard/ventas',
+        icon: ShoppingCart,
+        children: [
+            { name: 'POS', href: '/dashboard/pos' },
+            { name: 'Caja', href: '/dashboard/caja' },
+            { name: 'Libro de Ventas', href: '/dashboard/ventas' },
+            { name: 'Nueva Venta', href: '/dashboard/ventas/nueva' },
+            { name: 'Conciliación', href: '/dashboard/caja/reconciliacion' },
+        ]
+    },
+    {
+        name: 'Compras',
+        href: '/dashboard/compras',
+        icon: ShoppingBag,
+        children: [
+            { name: 'Libro de Compras', href: '/dashboard/compras' },
+            { name: 'Nueva Compra', href: '/dashboard/compras/nueva' },
+        ]
+    },
     { name: 'Proveedores', href: '/dashboard/proveedores', icon: Users },
-    { name: 'Compras', href: '/dashboard/compras', icon: ShoppingBag },
-    { name: 'Libros Fiscales', href: '/dashboard/libros-fiscales', icon: BookOpen },
-    { name: 'Financiero', href: '/dashboard/financiero', icon: PieChart },
-    { name: 'Cashea', href: '/dashboard/cashea', icon: CreditCard },
     {
         name: 'Retenciones',
         href: '/dashboard/retenciones',
@@ -58,53 +70,13 @@ const navigation = [
             { name: 'Municipal', href: '/dashboard/retenciones/municipal' },
         ]
     },
-    {
-        name: 'Caja',
-        href: '/dashboard/caja',
-        icon: DollarSign,
-        children: [
-            { name: 'Ventas', href: '/dashboard/caja' },
-            { name: 'Conciliación', href: '/dashboard/caja/reconciliacion' },
-        ]
-    },
-    {
-        name: 'Ventas',
-        href: '/dashboard/ventas',
-        icon: ShoppingCart,
-        children: [
-            { name: 'Libro de Ventas', href: '/dashboard/ventas' },
-            { name: 'Nueva Venta', href: '/dashboard/ventas/nueva' },
-        ]
-    },
-    {
-        name: 'Compras',
-        href: '/dashboard/compras',
-        icon: FileText,
-        children: [
-            { name: 'Libro de Compras', href: '/dashboard/compras' },
-            { name: 'Nueva Compra', href: '/dashboard/compras/nueva' },
-        ]
-    },
-    {
-        name: 'Retenciones',
-        href: '/dashboard/retenciones',
-        icon: Receipt,
-        children: [
-            { name: 'IVA', href: '/dashboard/retenciones/iva' },
-            { name: 'ISLR', href: '/dashboard/retenciones/islr' },
-            { name: 'Municipales', href: '/dashboard/retenciones/municipal' },
-        ]
-    },
-    {
-        name: 'Cuentas por Cobrar',
-        href: '/dashboard/cuentas-por-cobrar',
-        icon: TrendingUp
-    },
-    {
-        name: 'Cuentas por Pagar',
-        href: '/dashboard/cuentas-por-pagar',
-        icon: TrendingDown
-    },
+    { name: 'CxC', href: '/dashboard/cuentas-por-cobrar', icon: TrendingUp },
+    { name: 'CxP', href: '/dashboard/cuentas-por-pagar', icon: TrendingDown },
+    { name: 'Libros Fiscales', href: '/dashboard/libros-fiscales', icon: BookOpen },
+    { name: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
+    { name: 'SENIAT', href: '/dashboard/seniat', icon: FileCheck },
+    { name: 'Financiero', href: '/dashboard/financiero', icon: PieChart },
+    { name: 'Cashea', href: '/dashboard/cashea', icon: CreditCard },
     {
         name: 'Configuración',
         href: '/dashboard/configuracion',
@@ -117,6 +89,7 @@ const navigation = [
         ]
     },
 ]
+
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
     const [sidebarOpen, setSidebarOpen] = useState(false)
