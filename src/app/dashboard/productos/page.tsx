@@ -51,6 +51,30 @@ export default function ProductosPage() {
         stock: '0',
         minStock: '0',
     })
+    const [generatingSku, setGeneratingSku] = useState(false)
+
+    // Auto-generate SKU when brand and category change
+    const generateSKU = async (brand: string, category: string) => {
+        if (!brand || !category || brand.length < 2 || category.length < 2) return
+        if (editingProduct) return // Don't regenerate for edits
+
+        setGeneratingSku(true)
+        try {
+            const res = await fetch('/api/products/generate-sku', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ brand, category })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setFormData(prev => ({ ...prev, sku: data.sku }))
+            }
+        } catch (error) {
+            console.error('Error generating SKU:', error)
+        } finally {
+            setGeneratingSku(false)
+        }
+    }
 
     useEffect(() => {
         fetchProducts()
@@ -460,15 +484,16 @@ export default function ProductosPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium mb-2">
-                                            SKU / Código *
+                                            SKU / Código {generatingSku && <span className="text-xs text-blue-500">(generando...)</span>}
                                         </label>
                                         <Input
                                             required
-                                            placeholder="PROD-001"
+                                            placeholder="Auto-generado con Marca + Categoría"
                                             value={formData.sku}
                                             onChange={(e) =>
                                                 setFormData({ ...formData, sku: e.target.value })
                                             }
+                                            className={generatingSku ? 'bg-gray-100 dark:bg-gray-700' : ''}
                                         />
                                     </div>
 
@@ -507,11 +532,12 @@ export default function ProductosPage() {
                                         </label>
                                         <Input
                                             required
-                                            placeholder="Electrónicos, Textiles, etc."
+                                            placeholder="Repuestos, Lubricantes, etc."
                                             value={formData.category}
                                             onChange={(e) =>
                                                 setFormData({ ...formData, category: e.target.value })
                                             }
+                                            onBlur={() => generateSKU(formData.brand, formData.category)}
                                         />
                                     </div>
 
@@ -533,14 +559,16 @@ export default function ProductosPage() {
 
                                     <div>
                                         <label className="block text-sm font-medium mb-2">
-                                            Marca
+                                            Marca *
                                         </label>
                                         <Input
-                                            placeholder="Marca del producto"
+                                            required
+                                            placeholder="Toyota, Honda, Ford, etc."
                                             value={formData.brand}
                                             onChange={(e) =>
                                                 setFormData({ ...formData, brand: e.target.value })
                                             }
+                                            onBlur={() => generateSKU(formData.brand, formData.category)}
                                         />
                                     </div>
 
