@@ -52,12 +52,15 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json()
-        const { sku, name, description, category, priceUSD, costUSD, stock, minStock } = body
+        const { sku, name, description, category, priceUSD, costUSD, stock, minStock, reference, brand, location } = body
 
-        // Validation
-        if (!sku || !name || !priceUSD) {
+        // Use description or reference as name if name not provided
+        const productName = name || description || reference || 'Sin nombre'
+
+        // Validation - only SKU is truly required now
+        if (!sku) {
             return NextResponse.json(
-                { error: 'SKU, name, and price are required' },
+                { error: 'SKU es requerido' },
                 { status: 400 }
             )
         }
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
 
         if (existing) {
             return NextResponse.json(
-                { error: 'Product with this SKU already exists' },
+                { error: 'Ya existe un producto con este SKU' },
                 { status: 409 }
             )
         }
@@ -84,22 +87,25 @@ export async function POST(req: NextRequest) {
         })
 
         const rate = bcvRate?.rate || 36.5
-        const priceBS = parseFloat(priceUSD) * rate
+        const price = priceUSD ? parseFloat(priceUSD) : 0
+        const priceBS = price * rate
         const costBS = costUSD ? parseFloat(costUSD) * rate : 0
 
         const product = await prisma.product.create({
             data: {
                 companyId: session.user.companyId,
                 sku,
-                name,
+                name: productName,
                 description: description || null,
                 category: category || null,
-                priceUSD: parseFloat(priceUSD),
+                priceUSD: price,
                 priceBS,
                 costUSD: costUSD ? parseFloat(costUSD) : 0,
                 costBS,
                 stock: stock ? parseInt(stock) : 0,
                 minStock: minStock ? parseInt(minStock) : 5,
+                // Note: brand, reference, location not in Product model yet
+                // They would need to be added to schema if needed
             },
         })
 
