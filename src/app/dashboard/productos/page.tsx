@@ -42,11 +42,12 @@ export default function ProductosPage() {
     // Form state
     const [formData, setFormData] = useState({
         sku: '',
-        name: '',
+        reference: '',
         description: '',
         category: '',
-        priceUSD: '',
         costUSD: '',
+        brand: '',
+        location: '',
         stock: '0',
         minStock: '0',
     })
@@ -84,13 +85,14 @@ export default function ProductosPage() {
         setEditingProduct(null)
         setFormData({
             sku: '',
-            name: '',
+            reference: '',
             description: '',
             category: '',
-            priceUSD: '',
             costUSD: '',
+            brand: '',
+            location: '',
             stock: '0',
-            minStock: '5',
+            minStock: '0',
         })
         setShowModal(true)
     }
@@ -99,11 +101,12 @@ export default function ProductosPage() {
         setEditingProduct(product)
         setFormData({
             sku: product.sku,
-            name: product.name,
+            reference: (product as any).reference || '',
             description: product.description || '',
             category: product.category || '',
-            priceUSD: product.priceUSD.toString(),
             costUSD: product.costUSD.toString(),
+            brand: (product as any).brand || '',
+            location: (product as any).location || '',
             stock: product.stock.toString(),
             minStock: product.minStock.toString(),
         })
@@ -471,27 +474,14 @@ export default function ProductosPage() {
 
                                     <div>
                                         <label className="block text-sm font-medium mb-2">
-                                            Categoría
-                                        </label>
-                                        <Input
-                                            placeholder="Electrónicos, Textiles, etc."
-                                            value={formData.category}
-                                            onChange={(e) =>
-                                                setFormData({ ...formData, category: e.target.value })
-                                            }
-                                        />
-                                    </div>
-
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium mb-2">
-                                            Nombre del Producto *
+                                            Referencia *
                                         </label>
                                         <Input
                                             required
-                                            placeholder="Nombre del producto"
-                                            value={formData.name}
+                                            placeholder="REF-001"
+                                            value={formData.reference}
                                             onChange={(e) =>
-                                                setFormData({ ...formData, name: e.target.value })
+                                                setFormData({ ...formData, reference: e.target.value })
                                             }
                                         />
                                     </div>
@@ -502,7 +492,7 @@ export default function ProductosPage() {
                                         </label>
                                         <textarea
                                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500"
-                                            rows={3}
+                                            rows={2}
                                             placeholder="Descripción del producto"
                                             value={formData.description}
                                             onChange={(e) =>
@@ -513,17 +503,14 @@ export default function ProductosPage() {
 
                                     <div>
                                         <label className="block text-sm font-medium mb-2">
-                                            Precio USD *
+                                            Categoría *
                                         </label>
                                         <Input
                                             required
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            placeholder="0.00"
-                                            value={formData.priceUSD}
+                                            placeholder="Electrónicos, Textiles, etc."
+                                            value={formData.category}
                                             onChange={(e) =>
-                                                setFormData({ ...formData, priceUSD: e.target.value })
+                                                setFormData({ ...formData, category: e.target.value })
                                             }
                                         />
                                     </div>
@@ -540,6 +527,32 @@ export default function ProductosPage() {
                                             value={formData.costUSD}
                                             onChange={(e) =>
                                                 setFormData({ ...formData, costUSD: e.target.value })
+                                            }
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">
+                                            Marca
+                                        </label>
+                                        <Input
+                                            placeholder="Marca del producto"
+                                            value={formData.brand}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, brand: e.target.value })
+                                            }
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">
+                                            Ubicación
+                                        </label>
+                                        <Input
+                                            placeholder="Estante A1, Bodega 2, etc."
+                                            value={formData.location}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, location: e.target.value })
                                             }
                                         />
                                     </div>
@@ -566,7 +579,7 @@ export default function ProductosPage() {
                                         <Input
                                             type="number"
                                             min="0"
-                                            placeholder="5"
+                                            placeholder="0"
                                             value={formData.minStock}
                                             onChange={(e) =>
                                                 setFormData({ ...formData, minStock: e.target.value })
