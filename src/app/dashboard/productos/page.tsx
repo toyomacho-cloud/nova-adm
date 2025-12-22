@@ -486,15 +486,27 @@ export default function ProductosPage() {
                                         <label className="block text-sm font-medium mb-2">
                                             SKU / Código {generatingSku && <span className="text-xs text-blue-500">(generando...)</span>}
                                         </label>
-                                        <Input
-                                            required
-                                            placeholder="Auto-generado con Marca + Categoría"
-                                            value={formData.sku}
-                                            onChange={(e) =>
-                                                setFormData({ ...formData, sku: e.target.value })
-                                            }
-                                            className={generatingSku ? 'bg-gray-100 dark:bg-gray-700' : ''}
-                                        />
+                                        <div className="flex gap-2">
+                                            <Input
+                                                required
+                                                placeholder="Auto-generado con Marca + Categoría"
+                                                value={formData.sku}
+                                                onChange={(e) =>
+                                                    setFormData({ ...formData, sku: e.target.value })
+                                                }
+                                                className={generatingSku ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => generateSKU(formData.brand, formData.category)}
+                                                disabled={generatingSku || !formData.brand || !formData.category}
+                                                title="Generar SKU automáticamente basado en Marca y Categoría"
+                                            >
+                                                Generar
+                                            </Button>
+                                        </div>
                                     </div>
 
                                     <div>
