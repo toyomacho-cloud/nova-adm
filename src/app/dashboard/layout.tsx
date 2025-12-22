@@ -43,11 +43,8 @@ const navigation = [
         href: '/dashboard/ventas',
         icon: ShoppingCart,
         children: [
-            { name: 'POS', href: '/dashboard/pos' },
             { name: 'Caja', href: '/dashboard/caja' },
-            { name: 'Libro de Ventas', href: '/dashboard/ventas' },
             { name: 'Nueva Venta', href: '/dashboard/ventas/nueva' },
-            { name: 'Conciliación', href: '/dashboard/caja/reconciliacion' },
         ]
     },
     {
@@ -77,6 +74,15 @@ const navigation = [
     { name: 'SENIAT', href: '/dashboard/seniat', icon: FileCheck },
     { name: 'Financiero', href: '/dashboard/financiero', icon: PieChart },
     { name: 'Cashea', href: '/dashboard/cashea', icon: CreditCard },
+    {
+        name: 'Administración',
+        href: '/dashboard/administracion',
+        icon: Settings,
+        children: [
+            { name: 'Libro de Ventas', href: '/dashboard/ventas' },
+            { name: 'Conciliación', href: '/dashboard/caja/reconciliacion' },
+        ]
+    },
     {
         name: 'Configuración',
         href: '/dashboard/configuracion',
