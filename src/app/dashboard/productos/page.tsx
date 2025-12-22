@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Plus, Search, Edit, Trash2, X, Package, TrendingDown, TrendingUp } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Search, Edit, Trash2, X, Package, TrendingDown, TrendingUp, Upload } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -29,6 +29,16 @@ export default function ProductosPage() {
     const [showModal, setShowModal] = useState(false)
     const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
+    // Import state
+    const [importing, setImporting] = useState(false)
+    const [importResult, setImportResult] = useState<{
+        success: boolean
+        created?: number
+        updated?: number
+        errors?: string[]
+    } | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
     // Form state
     const [formData, setFormData] = useState({
         sku: '',
@@ -38,7 +48,7 @@ export default function ProductosPage() {
         priceUSD: '',
         costUSD: '',
         stock: '0',
-        minStock: '5',
+        minStock: '0',
     })
 
     useEffect(() => {
@@ -148,6 +158,39 @@ export default function ProductosPage() {
         }
     }
 
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setImporting(true)
+        setImportResult(null)
+
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+
+            const res = await fetch('/api/products/import', {
+                method: 'POST',
+                body: formData,
+            })
+
+            const data = await res.json()
+            setImportResult(data)
+
+            if (data.success) {
+                fetchProducts(searchTerm)
+            }
+        } catch (error) {
+            console.error('Error importing:', error)
+            setImportResult({ success: false, errors: ['Error al importar'] })
+        } finally {
+            setImporting(false)
+            if (fileInputRef.current) {
+                fileInputRef.current.value = ''
+            }
+        }
+    }
+
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('en-US', {
             minimumFractionDigits: 2,
@@ -157,6 +200,15 @@ export default function ProductosPage() {
 
     return (
         <div className="p-6 space-y-6">
+            {/* Hidden file input */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImport}
+                accept=".xlsx,.xls"
+                className="hidden"
+            />
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -165,11 +217,46 @@ export default function ProductosPage() {
                         Gestiona tu catálogo de productos
                     </p>
                 </div>
-                <Button onClick={openCreateModal}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nuevo Producto
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={importing}
+                    >
+                        <Upload className="w-4 h-4 mr-2" />
+                        {importing ? 'Importando...' : 'Importar Excel'}
+                    </Button>
+                    <Button onClick={openCreateModal}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Nuevo Producto
+                    </Button>
+                </div>
             </div>
+
+            {/* Import Result */}
+            {importResult && (
+                <Card className={`p-4 ${importResult.success ? 'bg-green-50 dark:bg-green-900/20 border-green-200' : 'bg-red-50 dark:bg-red-900/20 border-red-200'}`}>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            {importResult.success ? (
+                                <p className="text-green-800 dark:text-green-200">
+                                    ✅ Importación completada: {importResult.created} creados, {importResult.updated} actualizados
+                                    {importResult.errors && importResult.errors.length > 0 && (
+                                        <span className="text-orange-600 ml-2">({importResult.errors.length} errores)</span>
+                                    )}
+                                </p>
+                            ) : (
+                                <p className="text-red-800 dark:text-red-200">
+                                    ❌ Error: {importResult.errors?.join(', ')}
+                                </p>
+                            )}
+                        </div>
+                        <button onClick={() => setImportResult(null)} className="text-gray-500 hover:text-gray-700">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                </Card>
+            )}
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -276,10 +363,10 @@ export default function ProductosPage() {
                                     </div>
                                     <span
                                         className={`text-xs px-2 py-1 rounded ${stockStatus === 'ok'
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                                : stockStatus === 'low'
-                                                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-                                                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                            : stockStatus === 'low'
+                                                ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                                             }`}
                                     >
                                         {product.stock} uni.

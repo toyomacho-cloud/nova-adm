@@ -156,19 +156,22 @@ model Product {
   companyId   String
   
   sku         String
+  reference   String?  // Referencia adicional
   name        String
   description String?
   category    String?
+  brand       String?  // Marca
+  location    String?  // Ubicación
   
   // Dual Currency Pricing
-  priceUSD    Float
-  priceBS     Float
+  priceUSD    Float    @default(0)
+  priceBS     Float    @default(0)
   costUSD     Float?   @default(0)
   costBS      Float?   @default(0)
   
   // Stock
   stock       Int      @default(0)
-  minStock    Int      @default(5)
+  minStock    Int      @default(0)
   
   isActive    Boolean  @default(true)
   image       String?  // Product image URL or path
