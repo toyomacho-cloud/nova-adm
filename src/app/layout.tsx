@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter, Outfit } from 'next/font/google'
 import './globals.css'
 
@@ -14,19 +14,22 @@ const outfit = Outfit({
     display: 'swap',
 })
 
+export const viewport: Viewport = {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    themeColor: '#f97316',
+}
+
 export const metadata: Metadata = {
     title: 'NOVA-ADM | Sistema Administrativo',
     description: 'Sistema administrativo y contable integral para empresas venezolanas',
     keywords: ['contabilidad', 'venezuela', 'seniat', 'facturación', 'retenciones'],
     authors: [{ name: 'NOVA-ADM' }],
-    themeColor: '#f97316',
     manifest: '/manifest.json',
-    viewport: {
-        width: 'device-width',
-        initialScale: 1,
-        maximumScale: 1,
-    },
 }
+
+import { Providers } from '@/components/Providers'
 
 export default function RootLayout({
     children,
@@ -36,7 +39,9 @@ export default function RootLayout({
     return (
         <html lang="es" className={`${inter.variable} ${outfit.variable}`}>
             <body className={inter.className}>
-                {children}
+                <Providers>
+                    {children}
+                </Providers>
             </body>
         </html>
     )

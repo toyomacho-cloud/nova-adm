@@ -47,7 +47,7 @@ export async function PATCH(
         }
 
         const body = await req.json()
-        const { sku, name, description, category, priceUSD, costUSD, stock, minStock, isActive } = body
+        const { sku, reference, name, description, category, brand, location, priceUSD, costUSD, stock, minStock, isActive, imageUrl } = body
 
         // Verify ownership
         const existing = await prisma.product.findFirst({
@@ -72,12 +72,16 @@ export async function PATCH(
         const updateData: any = {}
 
         if (sku !== undefined) updateData.sku = sku
+        if (reference !== undefined) updateData.reference = reference
         if (name !== undefined) updateData.name = name
         if (description !== undefined) updateData.description = description
         if (category !== undefined) updateData.category = category
+        if (brand !== undefined) updateData.brand = brand
+        if (location !== undefined) updateData.location = location
         if (isActive !== undefined) updateData.isActive = isActive
         if (stock !== undefined) updateData.stock = parseInt(stock)
         if (minStock !== undefined) updateData.minStock = parseInt(minStock)
+        if (imageUrl !== undefined) updateData.image = imageUrl
 
         if (priceUSD !== undefined) {
             updateData.priceUSD = parseFloat(priceUSD)

@@ -127,8 +127,9 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Error generating SKU:', error)
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         return NextResponse.json(
-            { success: false, error: 'Error al generar SKU' },
+            { success: false, error: `Error al generar SKU: ${errorMessage}` },
             { status: 500 }
         )
     }

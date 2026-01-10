@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import * as XLSX from 'xlsx'
 import prisma from '@/lib/prisma'
 
@@ -20,6 +22,17 @@ interface ExcelRow {
 
 export async function POST(request: NextRequest) {
     try {
+        // Get session to get user's company
+        const session = await getServerSession(authOptions)
+        if (!session?.user?.companyId) {
+            return NextResponse.json(
+                { success: false, error: 'Debes iniciar sesión para importar productos' },
+                { status: 401 }
+            )
+        }
+
+        const companyId = session.user.companyId
+
         const formData = await request.formData()
         const file = formData.get('file') as File
 
@@ -44,15 +57,6 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Obtener empresa (usando la primera disponible por ahora)
-        const company = await prisma.company.findFirst()
-        if (!company) {
-            return NextResponse.json(
-                { success: false, error: 'No hay empresa configurada' },
-                { status: 400 }
-            )
-        }
-
         // Obtener tasa BCV para calcular precio en Bs
         let bcvRate = 285.40 // Default
         const rate = await prisma.exchangeRate.findFirst({
@@ -70,41 +74,70 @@ export async function POST(request: NextRequest) {
             errors: [] as string[]
         }
 
+        // Helper function for case-insensitive and alias key lookup
+        const getValue = (row: any, searchKeys: string[]) => {
+            const rowKeys = Object.keys(row)
+            for (const searchKey of searchKeys) {
+                // Exact match
+                if (row[searchKey] !== undefined) return row[searchKey]
+
+                // Case insensitive match
+                const foundKey = rowKeys.find(k =>
+                    k.toLowerCase().trim() === searchKey.toLowerCase().trim()
+                )
+                if (foundKey && row[foundKey] !== undefined) return row[foundKey]
+            }
+            return undefined
+        }
+
         for (let i = 0; i < data.length; i++) {
             const row = data[i]
-            const rowNum = i + 2 // +2 porque Excel empieza en 1 y tiene encabezado
+            const rowNum = i + 2 // +2 because Excel 1-indexed + header
 
-            // Validar campos requeridos
-            const sku = row.SKU?.toString().trim()
-            const referencia = row.REFERENCIA?.toString().trim()
-            const categoria = row.CATEGORIA?.toString().trim()
+            // Flexible field extraction
+            const rawSku = getValue(row, ['SKU', 'CODIGO', 'CODE'])
+            const rawRef = getValue(row, ['REFERENCIA', 'REF', 'MODELO'])
+            const rawCat = getValue(row, ['CATEGORIA', 'CATEGORY', 'DEPARTAMENTO'])
+            const rawName = getValue(row, ['DESCRIPCION', 'NOMBRE', 'PRODUCTO', 'NAME'])
+            const rawBrand = getValue(row, ['MARCA', 'BRAND', 'FABRICANTE'])
+            const rawLoc = getValue(row, ['UBICACION', 'LOCATION', 'UBICACIÓN']) // Handle accent
+
+            const rawPrice = getValue(row, ['PRECIO VENTA USD', 'PRECIO', 'PRECIO USD', 'PRICE'])
+            const rawCost = getValue(row, ['COSTO', 'COSTO USD', 'COST'])
+            const rawStock = getValue(row, ['EXISTENCIA', 'STOCK', 'CANTIDAD'])
+            const rawMin = getValue(row, ['STOCK MINIMO', 'MIN STOCK', 'MINIMO'])
+
+            // Validate required fields
+            const sku = rawSku?.toString().trim()
+            const referencia = rawRef?.toString().trim()
+            const categoria = rawCat?.toString().trim()
 
             if (!sku) {
-                results.errors.push(`Fila ${rowNum}: SKU es requerido`)
+                results.errors.push(`Fila ${rowNum}: SKU es requerido (Columna: SKU)`)
                 continue
             }
             if (!referencia) {
-                results.errors.push(`Fila ${rowNum}: REFERENCIA es requerida`)
+                results.errors.push(`Fila ${rowNum}: REFERENCIA es requerida (Columna: REFERENCIA)`)
                 continue
             }
             if (!categoria) {
-                results.errors.push(`Fila ${rowNum}: CATEGORIA es requerida`)
+                results.errors.push(`Fila ${rowNum}: CATEGORIA es requerida (Columna: CATEGORIA)`)
                 continue
             }
 
-            // Preparar datos del producto
-            const priceUSD = Number(row['PRECIO VENTA USD']) || 0
-            const costUSD = Number(row.COSTO) || 0
-            const stock = Number(row.EXISTENCIA) || 0
-            const minStock = Number(row['STOCK MINIMO']) || 0
+            // Prepare product data
+            const priceUSD = Number(rawPrice) || 0
+            const costUSD = Number(rawCost) || 0
+            const stock = Number(rawStock) || 0
+            const minStock = Number(rawMin) || 0
 
             const productData = {
-                name: row.DESCRIPCION?.toString().trim() || sku,
+                name: rawName?.toString().trim() || sku,
                 reference: referencia,
-                description: row.DESCRIPCION?.toString().trim() || null,
+                description: rawName?.toString().trim() || null,
                 category: categoria,
-                brand: row.MARCA?.toString().trim() || null,
-                location: row.UBICACION?.toString().trim() || null,
+                brand: rawBrand?.toString().trim() || null,
+                location: rawLoc?.toString().trim() || null,
                 priceUSD,
                 priceBS: priceUSD * bcvRate,
                 costUSD,
@@ -115,9 +148,9 @@ export async function POST(request: NextRequest) {
             }
 
             try {
-                // Upsert: crear o actualizar
+                // Upsert: create or update
                 const existing = await prisma.product.findFirst({
-                    where: { companyId: company.id, sku }
+                    where: { companyId, sku }
                 })
 
                 if (existing) {
@@ -129,7 +162,7 @@ export async function POST(request: NextRequest) {
                 } else {
                     await prisma.product.create({
                         data: {
-                            companyId: company.id,
+                            companyId,
                             sku,
                             ...productData
                         }

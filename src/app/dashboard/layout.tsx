@@ -29,22 +29,43 @@ import {
     ShoppingBag,
     BookOpen,
     PieChart,
+    Warehouse,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BCVWidget } from '@/components/BCVWidget'
+import { USDTWidget } from '@/components/USDTWidget'
 
 
 const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Clientes', href: '/dashboard/clientes', icon: User },
-    { name: 'Productos', href: '/dashboard/productos', icon: Package },
+    {
+        name: 'Contacto',
+        href: '/dashboard/contacto',
+        icon: Users,
+        children: [
+            { name: 'Clientes', href: '/dashboard/clientes' },
+            { name: 'Proveedores', href: '/dashboard/proveedores' },
+        ]
+    },
+    {
+        name: 'Inventario',
+        href: '/dashboard/inventario',
+        icon: Warehouse,
+        children: [
+            { name: 'Productos', href: '/dashboard/inventario/productos' },
+            { name: 'Gestión de Inventario', href: '/dashboard/inventario/movimientos' },
+            { name: 'Verificación de Stock', href: '/dashboard/inventario/verificacion' },
+        ]
+    },
     {
         name: 'Ventas',
         href: '/dashboard/ventas',
         icon: ShoppingCart,
         children: [
+            { name: '🛒 Punto de Venta', href: '/dashboard/punto-de-venta' },
+            { name: '💱 Tarifa', href: '/dashboard/ventas/tarifa' },
             { name: 'Caja', href: '/dashboard/caja' },
-            { name: 'Nueva Venta', href: '/dashboard/ventas/nueva' },
+            { name: 'Libro de Ventas', href: '/dashboard/ventas' },
         ]
     },
     {
@@ -56,7 +77,6 @@ const navigation = [
             { name: 'Nueva Compra', href: '/dashboard/compras/nueva' },
         ]
     },
-    { name: 'Proveedores', href: '/dashboard/proveedores', icon: Users },
     {
         name: 'Retenciones',
         href: '/dashboard/retenciones',
@@ -214,8 +234,9 @@ function Sidebar({ pathname, onClose }: { pathname: string; onClose?: () => void
             </div>
 
             {/* BCV Widget - Grande y prominente */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 space-y-3">
                 <BCVWidget />
+                <USDTWidget />
             </div>
 
             {/* Navigation */}

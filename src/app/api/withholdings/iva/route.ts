@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         // Calculate withholding
         // Special taxpayers: 75% of IVA
         // Regular: 100% of IVA
-        const rate = sale.customer.isSpecialTaxpayer ? 75 : 100
+        const rate = sale.customer?.isSpecialTaxpayer ? 75 : 100
         const withholdingAmount = (sale.taxAmountUSD * rate) / 100
 
         // Generate receipt number

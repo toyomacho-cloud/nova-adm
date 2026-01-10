@@ -26,7 +26,10 @@ export async function POST(req: NextRequest) {
 
         // Create PayPal payment
         const paypal = getPayPalAPI()
-        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+        let baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+        if (baseUrl.includes('Value: ')) {
+            baseUrl = baseUrl.split('Value: ')[1].trim()
+        }
 
         const payment = await paypal.createOrder({
             amount: order.total,

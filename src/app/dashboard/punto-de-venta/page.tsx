@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import {
     ShoppingCart, Search, Plus, Minus, Trash2, User, FileText,
-    Check, ChevronRight, Package, X, Printer, FileDown, Maximize2, Image as ImageIcon
+    CreditCard, Check, ChevronRight, ChevronLeft, Package, X
 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -15,10 +16,7 @@ interface Product {
     name: string
     reference?: string
     location?: string
-    brand?: string
-    image?: string
     priceUSD: number
-    priceBS: number
     costUSD: number
     stock: number
 }
@@ -36,14 +34,38 @@ interface Customer {
     phone?: string
 }
 
+const PAYMENT_METHODS_BS = [
+    { code: 'POS_BS', name: 'Punto de Venta', icon: '💳' },
+    { code: 'PAGO_MOVIL', name: 'Pago Móvil', icon: '📱' },
+    { code: 'TRANSFER_BS', name: 'Transferencia Bs', icon: '🏦' },
+    { code: 'CASH_BS', name: 'Efectivo Bs', icon: '💵' },
+]
+
+const PAYMENT_METHODS_USD = [
+    { code: 'CASH_USD', name: 'Efectivo USD', icon: '💲' },
+    { code: 'CASH_EUR', name: 'Efectivo Euro', icon: '💶' },
+    { code: 'ZELLE', name: 'Zelle', icon: '⚡' },
+    { code: 'PAYPAL', name: 'PayPal', icon: '🅿️' },
+    { code: 'USDT', name: 'USDT', icon: '₮' },
+    { code: 'BANESCO_PANAMA', name: 'Banesco Panamá', icon: '🏧' },
+]
+
+const PAYMENT_METHODS_CREDIT = [
+    { code: 'CREDIT_SALE', name: 'Venta a Crédito', icon: '📅' },
+    { code: 'CASHEA', name: 'Cashea', icon: '💳' },
+]
+
 const STEPS = [
     { id: 1, title: 'Productos', icon: Package },
     { id: 2, title: 'Cliente', icon: User },
-    { id: 3, title: 'Confirmar', icon: FileText },
-    { id: 4, title: 'Listo', icon: Check },
+    { id: 3, title: 'Resumen', icon: FileText },
+    { id: 4, title: 'Cobro', icon: CreditCard },
+    { id: 5, title: 'Listo', icon: Check },
 ]
 
-export default function POSPage() {
+export default function PuntoDeVentaPage() {
+    const { data: session } = useSession()
+
     // Step management
     const [currentStep, setCurrentStep] = useState(1)
 
@@ -70,66 +92,30 @@ export default function POSPage() {
     const [creatingCustomer, setCreatingCustomer] = useState(false)
 
     // Exchange rate
-    const [exchangeRate, setExchangeRate] = useState(50)
+    const [rates, setRates] = useState<{ bcv: number, binance: number }>({ bcv: 50, binance: 50 })
+    const [rateType, setRateType] = useState<'BCV' | 'BINANCE'>('BCV')
+    const exchangeRate = rateType === 'BCV' ? rates.bcv : rates.binance
 
-    // Document Type (NEW)
-    const [documentType, setDocumentType] = useState<'QUOTE' | 'ORDER'>('ORDER')
+    // Payment
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null)
+    const [creditDays, setCreditDays] = useState(15)
+    const [paymentReference, setPaymentReference] = useState('')
 
-    // Order/Quote result
+    // Document
+    const [documentType, setDocumentType] = useState<'QUOTE' | 'ORDER' | 'SALE'>('SALE')
     const [processing, setProcessing] = useState(false)
-    const [completedDocument, setCompletedDocument] = useState<{
-        documentNumber: string
-        documentType: 'QUOTE' | 'ORDER'
-        totalUSD: number
-        totalBS: number
-        id: string
-    } | null>(null)
+    const [completedSale, setCompletedSale] = useState<any>(null)
 
-    // OPTIMIZED: Debounce timer ref for search
-    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-    // Image expansion modal state
-    const [expandedImage, setExpandedImage] = useState<{ url: string; name: string } | null>(null)
-
-    // Fetch data on mount
+    // Fetch products
     useEffect(() => {
-        fetchProducts('')
+        fetchProducts()
         fetchCustomers()
-        fetchExchangeRate()
+        fetchRates()
     }, [])
 
-    // OPTIMIZED: Debounced server-side search (300ms delay)
-    useEffect(() => {
-        // Clear previous timeout
-        if (searchTimeoutRef.current) {
-            clearTimeout(searchTimeoutRef.current)
-        }
-
-        // Set new timeout for debounced search
-        searchTimeoutRef.current = setTimeout(() => {
-            if (searchTerm.length >= 2 || searchTerm.length === 0) {
-                fetchProducts(searchTerm)
-            }
-        }, 300) // 300ms debounce
-
-        // Cleanup on unmount
-        return () => {
-            if (searchTimeoutRef.current) {
-                clearTimeout(searchTimeoutRef.current)
-            }
-        }
-    }, [searchTerm])
-
-    // OPTIMIZED: Server-side search - no more client filtering
-    const fetchProducts = useCallback(async (search: string = '') => {
+    const fetchProducts = async () => {
         try {
-            setLoadingProducts(true)
-            // Use server-side search for better performance
-            const params = new URLSearchParams()
-            if (search) params.set('search', search)
-            params.set('limit', '100') // Limit results for POS
-
-            const res = await fetch(`/api/products?${params.toString()}`)
+            const res = await fetch('/api/products')
             const data = await res.json()
             if (data.success) {
                 setProducts(data.products)
@@ -139,7 +125,7 @@ export default function POSPage() {
         } finally {
             setLoadingProducts(false)
         }
-    }, [])
+    }
 
     const fetchCustomers = async () => {
         try {
@@ -153,15 +139,21 @@ export default function POSPage() {
         }
     }
 
-    const fetchExchangeRate = async () => {
+    const fetchRates = async () => {
         try {
-            const res = await fetch('/api/bcv/rate')
-            const data = await res.json()
-            if (data.rate) {
-                setExchangeRate(data.rate)
-            }
+            const [bcvRes, binanceRes] = await Promise.all([
+                fetch('/api/bcv/rate'),
+                fetch('/api/rates/binance')
+            ])
+            const bcvData = await bcvRes.json()
+            const binanceData = await binanceRes.json()
+
+            setRates({
+                bcv: bcvData.rate || 50,
+                binance: binanceData.rate || 50
+            })
         } catch (error) {
-            console.error('Error:', error)
+            console.error('Error fetching rates:', error)
         }
     }
 
@@ -170,10 +162,6 @@ export default function POSPage() {
         setCart(prev => {
             const existing = prev.find(item => item.product.id === product.id)
             if (existing) {
-                if (existing.quantity >= product.stock) {
-                    alert('Stock insuficiente')
-                    return prev
-                }
                 return prev.map(item =>
                     item.product.id === product.id
                         ? { ...item, quantity: item.quantity + 1 }
@@ -187,7 +175,7 @@ export default function POSPage() {
     const updateQuantity = (productId: string, delta: number) => {
         setCart(prev => prev.map(item => {
             if (item.product.id === productId) {
-                const newQty = Math.max(1, Math.min(item.product.stock, item.quantity + delta))
+                const newQty = Math.max(1, item.quantity + delta)
                 return { ...item, quantity: newQty }
             }
             return item
@@ -207,12 +195,13 @@ export default function POSPage() {
         setCart(prev => prev.filter(item => item.product.id !== productId))
     }
 
-    const clearAll = () => {
+    const clearCart = () => {
         setCart([])
         setSelectedCustomer(null)
         setCurrentStep(1)
-        setCompletedDocument(null)
-        setDocumentType('ORDER')
+        setSelectedPaymentMethod(null)
+        setDocumentType('SALE')
+        setCompletedSale(null)
     }
 
     // Calculations
@@ -222,83 +211,60 @@ export default function POSPage() {
     const totalUSD = subtotalUSD + taxAmountUSD
     const totalBS = totalUSD * exchangeRate
 
-    // Create Document (Quote or Order)
-    const createDocument = async () => {
-        console.log('=== createDocument CALLED ===')
-        console.log('Selected Customer:', selectedCustomer)
-        console.log('Cart:', cart)
-        console.log('Document Type:', documentType)
-
-        if (!selectedCustomer) {
-            alert('Selecciona un cliente')
-            return
-        }
-
-        if (cart.length === 0) {
-            alert('Agrega productos al carrito')
+    // Process sale
+    const processSale = async () => {
+        if (!selectedPaymentMethod) {
+            alert('Selecciona un método de pago')
             return
         }
 
         setProcessing(true)
-        console.log('Processing started...')
-
         try {
-            const payload = {
-                documentType: documentType,
-                customerId: selectedCustomer.id,
-                items: cart.map(item => ({
-                    productId: item.product.id,
-                    quantity: item.quantity,
-                })),
-            }
-            console.log('Sending payload:', payload)
-
-            const res = await fetch('/api/sales', {
+            const res = await fetch('/api/sales-flow', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify({
+                    documentType,
+                    customerId: selectedCustomer?.id,
+                    items: cart.map(item => ({
+                        productId: item.product.id,
+                        quantity: item.quantity,
+                        unitPriceUSD: item.priceUSD
+                    })),
+                    paymentMethod: selectedPaymentMethod,
+                    paymentReference,
+                    creditDays: selectedPaymentMethod === 'CREDIT_SALE' ? creditDays : null,
+                    bcvRate: exchangeRate,
+                    subtotalUSD,
+                    taxAmountUSD,
+                    totalUSD,
+                    subtotalBS: subtotalUSD * exchangeRate,
+                    taxAmountBS: taxAmountUSD * exchangeRate,
+                    totalBS
+                })
             })
-
-            console.log('Response status:', res.status)
-
-            // Check response status first
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => null)
-                throw new Error(errorData?.error || `Error del servidor: ${res.status}`)
-            }
 
             const data = await res.json()
             if (data.success) {
-                setCompletedDocument({
-                    documentNumber: data.orderNumber,
-                    documentType: documentType,
-                    totalUSD: data.sale.totalUSD,
-                    totalBS: data.sale.totalBS,
-                    id: data.sale.id,
-                })
-                setCurrentStep(4)
+                setCompletedSale(data.sale)
+                setCurrentStep(5)
             } else {
                 alert('Error: ' + (data.error || 'Error al procesar'))
             }
-        } catch (error: any) {
-            console.error('Error creating document:', error)
-            alert(error.message || 'Error al crear el documento')
+        } catch (error) {
+            console.error('Error:', error)
+            alert('Error al procesar la venta')
         } finally {
             setProcessing(false)
         }
     }
 
-    // Generate PDF for Quote
-    const generatePDF = async () => {
-        if (!completedDocument) return
-
-        // Open PDF in new tab
-        window.open(`/api/sales/${completedDocument.id}/pdf`, '_blank')
-    }
-
-    // OPTIMIZED: Products are now filtered server-side, no client filtering needed
-    // This reduces JavaScript execution time and memory usage
-    const filteredProducts = products
+    // Filter products
+    const filteredProducts = products.filter(p =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.reference && p.reference.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
 
     // Filter customers
     const filteredCustomers = customers.filter(c =>
@@ -311,24 +277,21 @@ export default function POSPage() {
     const canProceed = () => {
         switch (currentStep) {
             case 1: return cart.length > 0
-            case 2: return selectedCustomer !== null
+            case 2: return true // Customer is optional
             case 3: return true
+            case 4: return selectedPaymentMethod !== null
             default: return false
         }
     }
 
     const nextStep = () => {
-        if (canProceed() && currentStep < 4) {
-            if (currentStep === 3) {
-                createDocument()
-            } else {
-                setCurrentStep(currentStep + 1)
-            }
+        if (canProceed() && currentStep < 5) {
+            setCurrentStep(currentStep + 1)
         }
     }
 
     const prevStep = () => {
-        if (currentStep > 1 && currentStep < 4) {
+        if (currentStep > 1) {
             setCurrentStep(currentStep - 1)
         }
     }
@@ -342,11 +305,25 @@ export default function POSPage() {
                         <ShoppingCart className="w-6 h-6 text-primary-500" />
                         Punto de Venta
                     </h1>
-                    <div className="flex items-center gap-4">
-                        <div className="text-sm">
-                            <span className="text-gray-500">Tasa BCV:</span>
-                            <span className="font-bold text-green-600 ml-1">Bs. {formatCurrency(exchangeRate)}</span>
-                        </div>
+                    <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                        <button
+                            onClick={() => setRateType('BCV')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${rateType === 'BCV'
+                                    ? 'bg-white dark:bg-gray-600 text-green-600 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            BCV: {formatCurrency(rates.bcv)}
+                        </button>
+                        <button
+                            onClick={() => setRateType('BINANCE')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${rateType === 'BINANCE'
+                                    ? 'bg-white dark:bg-gray-600 text-yellow-600 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            Paralelo: {formatCurrency(rates.binance)}
+                        </button>
                     </div>
                 </div>
 
@@ -355,12 +332,12 @@ export default function POSPage() {
                     {STEPS.map((step, index) => (
                         <div key={step.id} className="flex items-center">
                             <button
-                                onClick={() => step.id < currentStep && currentStep < 4 && setCurrentStep(step.id)}
-                                disabled={step.id > currentStep || currentStep === 4}
+                                onClick={() => step.id < currentStep && setCurrentStep(step.id)}
+                                disabled={step.id > currentStep}
                                 className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${currentStep === step.id
                                     ? 'bg-primary-500 text-white'
                                     : step.id < currentStep
-                                        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 cursor-pointer'
+                                        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
                                         : 'bg-gray-100 text-gray-400 dark:bg-gray-700'
                                     }`}
                             >
@@ -404,72 +381,27 @@ export default function POSPage() {
                                         </div>
                                     ) : (
                                         filteredProducts.map(product => (
-                                            <div
+                                            <button
                                                 key={product.id}
+                                                onClick={() => addToCart(product)}
+                                                disabled={product.stock <= 0}
                                                 className={`p-3 rounded-xl text-left transition-all border-2 ${product.stock <= 0
                                                     ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
                                                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary-500 hover:shadow-md'
                                                     }`}
                                             >
-                                                {/* Product Image - Always visible, larger size */}
-                                                <div
-                                                    className="w-full h-24 mb-2 flex items-center justify-center bg-gray-50 dark:bg-gray-700 rounded-lg relative cursor-pointer group"
-                                                    onClick={(e) => {
-                                                        if (product.image) {
-                                                            e.stopPropagation()
-                                                            setExpandedImage({ url: product.image, name: product.name })
-                                                        }
-                                                    }}
-                                                >
-                                                    {product.image ? (
-                                                        <>
-                                                            <img
-                                                                src={product.image}
-                                                                alt={product.name}
-                                                                className="max-h-full max-w-full object-contain rounded"
-                                                                onError={(e) => {
-                                                                    (e.target as HTMLImageElement).style.display = 'none'
-                                                                    const parent = (e.target as HTMLImageElement).parentElement
-                                                                    if (parent) {
-                                                                        const placeholder = parent.querySelector('.placeholder-icon')
-                                                                        if (placeholder) (placeholder as HTMLElement).style.display = 'flex'
-                                                                    }
-                                                                }}
-                                                            />
-                                                            <div className="placeholder-icon hidden w-full h-full items-center justify-center">
-                                                                <ImageIcon className="w-8 h-8 text-gray-300" />
-                                                            </div>
-                                                            {/* Expand icon on hover */}
-                                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                                                                <Maximize2 className="w-6 h-6 text-white" />
-                                                            </div>
-                                                        </>
-                                                    ) : (
-                                                        <ImageIcon className="w-8 h-8 text-gray-300" />
-                                                    )}
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-xs text-gray-500 truncate">{product.reference || product.sku}</span>
+                                                    <span className={`text-xs px-1.5 py-0.5 rounded ${product.stock <= 0 ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                        {product.stock}
+                                                    </span>
                                                 </div>
-                                                {/* Add to cart button */}
-                                                <button
-                                                    onClick={() => addToCart(product)}
-                                                    disabled={product.stock <= 0}
-                                                    className="w-full"
-                                                >
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <span className="text-xs text-gray-500 truncate">{product.reference || product.sku}</span>
-                                                        <span className={`text-xs px-1.5 py-0.5 rounded ${product.stock <= 0 ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                            {product.stock}
-                                                        </span>
-                                                    </div>
-                                                    <p className="font-medium text-sm truncate mb-1">{product.name}</p>
-                                                    {product.brand && (
-                                                        <p className="text-xs text-purple-600 truncate mb-1">🎴 {product.brand}</p>
-                                                    )}
-                                                    {product.location && (
-                                                        <p className="text-xs text-orange-600 truncate mb-1">📍 {product.location}</p>
-                                                    )}
-                                                    <p className="font-bold text-green-600 text-lg">${formatCurrency(product.priceUSD)}</p>
-                                                </button>
-                                            </div>
+                                                <p className="font-medium text-sm truncate mb-1">{product.name}</p>
+                                                {product.location && (
+                                                    <p className="text-xs text-orange-600 truncate mb-1">📍 {product.location}</p>
+                                                )}
+                                                <p className="font-bold text-green-600 text-lg">${formatCurrency(product.priceUSD)}</p>
+                                            </button>
                                         ))
                                     )}
                                 </div>
@@ -501,6 +433,7 @@ export default function POSPage() {
                                                         </button>
                                                     </div>
                                                     <div className="flex items-center gap-2">
+                                                        {/* Editable Price */}
                                                         <div className="flex-1">
                                                             <label className="text-xs text-gray-500">Precio:</label>
                                                             <div className="flex items-center gap-1">
@@ -514,7 +447,9 @@ export default function POSPage() {
                                                                     min="0"
                                                                 />
                                                             </div>
+                                                            <p className="text-xs text-blue-600">Bs. {formatCurrency(item.priceUSD * exchangeRate)}</p>
                                                         </div>
+                                                        {/* Quantity */}
                                                         <div className="flex items-center gap-1">
                                                             <button
                                                                 onClick={() => updateQuantity(item.product.id, -1)}
@@ -530,8 +465,10 @@ export default function POSPage() {
                                                                 <Plus className="w-3 h-3" />
                                                             </button>
                                                         </div>
-                                                        <div className="text-right min-w-16">
+                                                        {/* Total */}
+                                                        <div className="text-right min-w-20">
                                                             <p className="font-bold text-sm text-green-600">${formatCurrency(item.priceUSD * item.quantity)}</p>
+                                                            <p className="text-xs text-blue-600">Bs. {formatCurrency(item.priceUSD * item.quantity * exchangeRate)}</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -569,9 +506,10 @@ export default function POSPage() {
                         <Card className="p-6">
                             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                                 <User className="w-5 h-5" />
-                                Seleccionar Cliente
+                                Seleccionar Cliente (Opcional)
                             </h3>
 
+                            {/* Search and New Customer Button */}
                             <div className="flex gap-2 mb-4">
                                 <div className="relative flex-1">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -587,7 +525,7 @@ export default function POSPage() {
                                     className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
                                 >
                                     <Plus className="w-4 h-4" />
-                                    Nuevo
+                                    Nuevo Cliente
                                 </Button>
                             </div>
 
@@ -624,6 +562,10 @@ export default function POSPage() {
                                     ))
                                 )}
                             </div>
+
+                            <p className="mt-4 text-sm text-gray-500 text-center">
+                                Puedes continuar sin seleccionar cliente para ventas rápidas
+                            </p>
                         </Card>
 
                         {/* New Customer Modal */}
@@ -632,32 +574,43 @@ export default function POSPage() {
                                 <Card className="w-full max-w-md mx-4 p-6">
                                     <div className="flex items-center justify-between mb-6">
                                         <h3 className="font-bold text-lg">Nuevo Cliente</h3>
-                                        <button onClick={() => setShowNewCustomerModal(false)} className="text-gray-500 hover:text-gray-700">
+                                        <button
+                                            onClick={() => setShowNewCustomerModal(false)}
+                                            className="text-gray-500 hover:text-gray-700"
+                                        >
                                             <X className="w-5 h-5" />
                                         </button>
                                     </div>
 
                                     <div className="space-y-4">
+                                        {/* Customer Type */}
                                         <div>
-                                            <label className="block text-sm font-medium mb-2">Tipo</label>
+                                            <label className="block text-sm font-medium mb-2">Tipo de Cliente</label>
                                             <div className="grid grid-cols-4 gap-2">
-                                                {['V', 'E', 'J', 'G'].map(type => (
+                                                {[
+                                                    { value: 'V', label: 'Venezolano', desc: 'V-' },
+                                                    { value: 'E', label: 'Extranjero', desc: 'E-' },
+                                                    { value: 'J', label: 'Jurídico', desc: 'J-' },
+                                                    { value: 'G', label: 'Gubernamental', desc: 'G-' },
+                                                ].map(type => (
                                                     <button
-                                                        key={type}
-                                                        onClick={() => setNewCustomerType(type as 'V' | 'E' | 'J' | 'G')}
-                                                        className={`p-2 rounded-lg border-2 text-center font-bold ${newCustomerType === type
-                                                            ? 'border-primary-500 bg-primary-50'
-                                                            : 'border-gray-200 hover:border-primary-300'
+                                                        key={type.value}
+                                                        onClick={() => setNewCustomerType(type.value as 'V' | 'E' | 'J' | 'G')}
+                                                        className={`p-2 rounded-lg border-2 text-center transition-all ${newCustomerType === type.value
+                                                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                                                            : 'border-gray-200 dark:border-gray-700 hover:border-primary-300'
                                                             }`}
                                                     >
-                                                        {type}
+                                                        <p className="font-bold text-lg">{type.value}</p>
+                                                        <p className="text-xs text-gray-500">{type.label}</p>
                                                     </button>
                                                 ))}
                                             </div>
                                         </div>
 
+                                        {/* Customer Name */}
                                         <div>
-                                            <label className="block text-sm font-medium mb-2">Nombre</label>
+                                            <label className="block text-sm font-medium mb-2">Nombre / Razón Social</label>
                                             <Input
                                                 placeholder="Nombre del cliente"
                                                 value={newCustomerName}
@@ -665,14 +618,17 @@ export default function POSPage() {
                                             />
                                         </div>
 
+                                        {/* RIF/Cédula */}
                                         <div>
-                                            <label className="block text-sm font-medium mb-2">Cédula/RIF</label>
+                                            <label className="block text-sm font-medium mb-2">
+                                                {newCustomerType === 'J' || newCustomerType === 'G' ? 'RIF' : 'Cédula'}
+                                            </label>
                                             <div className="flex">
-                                                <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-100 text-sm font-medium">
+                                                <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-100 text-gray-600 text-sm font-medium">
                                                     {newCustomerType}-
                                                 </span>
                                                 <Input
-                                                    placeholder="12345678"
+                                                    placeholder={newCustomerType === 'J' || newCustomerType === 'G' ? '12345678-9' : '12345678'}
                                                     value={newCustomerRif}
                                                     onChange={(e) => setNewCustomerRif(e.target.value.replace(/[^0-9-]/g, ''))}
                                                     className="rounded-l-none"
@@ -680,6 +636,7 @@ export default function POSPage() {
                                             </div>
                                         </div>
 
+                                        {/* Phone */}
                                         <div>
                                             <label className="block text-sm font-medium mb-2">Teléfono</label>
                                             <Input
@@ -689,14 +646,29 @@ export default function POSPage() {
                                             />
                                         </div>
 
+                                        {/* Address */}
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Dirección</label>
+                                            <Input
+                                                placeholder="Dirección del cliente"
+                                                value={newCustomerAddress}
+                                                onChange={(e) => setNewCustomerAddress(e.target.value)}
+                                            />
+                                        </div>
+
+                                        {/* Actions */}
                                         <div className="flex gap-3 pt-4">
-                                            <Button variant="outline" onClick={() => setShowNewCustomerModal(false)} className="flex-1">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => setShowNewCustomerModal(false)}
+                                                className="flex-1"
+                                            >
                                                 Cancelar
                                             </Button>
                                             <Button
                                                 onClick={async () => {
                                                     if (!newCustomerName.trim() || !newCustomerRif.trim()) {
-                                                        alert('Complete nombre y cédula/RIF')
+                                                        alert('Por favor complete el nombre y cédula/RIF del cliente')
                                                         return
                                                     }
                                                     setCreatingCustomer(true)
@@ -714,17 +686,21 @@ export default function POSPage() {
                                                         })
                                                         if (!res.ok) {
                                                             const err = await res.json()
-                                                            throw new Error(err.error || 'Error')
+                                                            throw new Error(err.error || 'Error al crear cliente')
                                                         }
                                                         const newCustomer = await res.json()
+                                                        // Add to customers list and select it
                                                         setCustomers(prev => [newCustomer, ...prev])
                                                         setSelectedCustomer(newCustomer)
+                                                        // Reset form
                                                         setNewCustomerName('')
                                                         setNewCustomerRif('')
                                                         setNewCustomerPhone('')
+                                                        setNewCustomerAddress('San Felix, Edo. Bolivar')
+                                                        setNewCustomerType('V')
                                                         setShowNewCustomerModal(false)
                                                     } catch (error: any) {
-                                                        alert(error.message || 'Error')
+                                                        alert(error.message || 'Error al crear cliente')
                                                     } finally {
                                                         setCreatingCustomer(false)
                                                     }
@@ -732,7 +708,7 @@ export default function POSPage() {
                                                 disabled={creatingCustomer}
                                                 className="flex-1 bg-green-600 hover:bg-green-700"
                                             >
-                                                {creatingCustomer ? 'Guardando...' : 'Guardar'}
+                                                {creatingCustomer ? 'Creando...' : 'Guardar Cliente'}
                                             </Button>
                                         </div>
                                     </div>
@@ -742,49 +718,44 @@ export default function POSPage() {
                     </div>
                 )}
 
-                {/* Step 3: Summary & Document Type Selection */}
+                {/* Step 3: Summary */}
                 {currentStep === 3 && (
                     <div className="max-w-2xl mx-auto">
                         <Card className="p-6">
                             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                                 <FileText className="w-5 h-5" />
-                                Confirmar Documento
+                                Resumen del Documento
                             </h3>
 
                             {/* Document Type Selector */}
                             <div className="mb-6">
-                                <label className="block text-sm font-medium mb-3">Tipo de Documento:</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        onClick={() => setDocumentType('QUOTE')}
-                                        className={`p-4 rounded-xl border-2 text-center transition-all ${documentType === 'QUOTE'
-                                            ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
-                                            : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300'
-                                            }`}
-                                    >
-                                        <span className="text-3xl mb-2 block">📋</span>
-                                        <p className="font-bold">Presupuesto</p>
-                                        <p className="text-xs text-gray-500">Genera PDF, válido solo hoy</p>
-                                    </button>
-                                    <button
-                                        onClick={() => setDocumentType('ORDER')}
-                                        className={`p-4 rounded-xl border-2 text-center transition-all ${documentType === 'ORDER'
-                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                            : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
-                                            }`}
-                                    >
-                                        <span className="text-3xl mb-2 block">📦</span>
-                                        <p className="font-bold">Pedido</p>
-                                        <p className="text-xs text-gray-500">Pasa a caja para cobro</p>
-                                    </button>
+                                <label className="block text-sm font-medium mb-2">Tipo de Documento:</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { type: 'QUOTE' as const, label: '📋 Presupuesto', color: 'yellow' },
+                                        { type: 'ORDER' as const, label: '📦 Pedido', color: 'orange' },
+                                        { type: 'SALE' as const, label: '🧾 Venta', color: 'green' },
+                                    ].map(doc => (
+                                        <button
+                                            key={doc.type}
+                                            onClick={() => setDocumentType(doc.type)}
+                                            className={`p-3 rounded-xl border-2 text-center transition-all ${documentType === doc.type
+                                                ? `border-${doc.color}-500 bg-${doc.color}-50 dark:bg-${doc.color}-900/20`
+                                                : 'border-gray-200 dark:border-gray-700 hover:border-gray-400'
+                                                }`}
+                                        >
+                                            {doc.label}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
                             {/* Customer Info */}
                             <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl mb-4">
                                 <p className="text-sm text-gray-500">Cliente:</p>
-                                <p className="font-bold">{selectedCustomer?.name}</p>
-                                <p className="text-sm text-gray-600">{selectedCustomer?.rif}</p>
+                                <p className="font-bold">
+                                    {selectedCustomer ? selectedCustomer.name : 'Venta Rápida (Sin Cliente)'}
+                                </p>
                             </div>
 
                             {/* Items */}
@@ -792,19 +763,19 @@ export default function POSPage() {
                                 <table className="w-full text-sm">
                                     <thead className="bg-gray-100 dark:bg-gray-800">
                                         <tr>
-                                            <th className="text-left p-3">Producto</th>
-                                            <th className="text-center p-3">Cant.</th>
-                                            <th className="text-right p-3">Precio</th>
-                                            <th className="text-right p-3">Total</th>
+                                            <th className="text-left p-2">Producto</th>
+                                            <th className="text-center p-2">Cant.</th>
+                                            <th className="text-right p-2">Precio</th>
+                                            <th className="text-right p-2">Total</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {cart.map(item => (
                                             <tr key={item.product.id} className="border-t">
-                                                <td className="p-3">{item.product.name}</td>
-                                                <td className="p-3 text-center">{item.quantity}</td>
-                                                <td className="p-3 text-right">${formatCurrency(item.priceUSD)}</td>
-                                                <td className="p-3 text-right font-medium">${formatCurrency(item.priceUSD * item.quantity)}</td>
+                                                <td className="p-2">{item.product.name}</td>
+                                                <td className="p-2 text-center">{item.quantity}</td>
+                                                <td className="p-2 text-right">${formatCurrency(item.priceUSD)}</td>
+                                                <td className="p-2 text-right font-medium">${formatCurrency(item.priceUSD * item.quantity)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -812,10 +783,7 @@ export default function POSPage() {
                             </div>
 
                             {/* Totals */}
-                            <div className={`p-4 rounded-xl ${documentType === 'QUOTE'
-                                ? 'bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20'
-                                : 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20'
-                                }`}>
+                            <div className="p-4 bg-gradient-to-br from-primary-50 to-secondary-50 dark:from-gray-800 dark:to-gray-900 rounded-xl">
                                 <div className="flex justify-between mb-1">
                                     <span>Subtotal:</span>
                                     <span>${formatCurrency(subtotalUSD)}</span>
@@ -833,193 +801,195 @@ export default function POSPage() {
                                     <span>Bs. {formatCurrency(totalBS)}</span>
                                 </div>
                             </div>
-
-                            {documentType === 'QUOTE' && (
-                                <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-center">
-                                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                                        ⚠️ El presupuesto expira hoy a las 12:00 AM
-                                    </p>
-                                </div>
-                            )}
                         </Card>
                     </div>
                 )}
 
-                {/* Step 4: Document Completed */}
-                {currentStep === 4 && completedDocument && (
-                    <div className="max-w-md mx-auto">
-                        <Card className="p-8 text-center">
-                            <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${completedDocument.documentType === 'QUOTE'
-                                ? 'bg-yellow-100 dark:bg-yellow-900/30'
-                                : 'bg-green-100 dark:bg-green-900/30'
-                                }`}>
-                                <Check className={`w-10 h-10 ${completedDocument.documentType === 'QUOTE' ? 'text-yellow-600' : 'text-green-600'
-                                    }`} />
+                {/* Step 4: Payment */}
+                {currentStep === 4 && (
+                    <div className="max-w-3xl mx-auto">
+                        <Card className="p-6">
+                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                <CreditCard className="w-5 h-5" />
+                                Método de Pago
+                            </h3>
+
+                            <div className="text-center mb-6 p-4 bg-gradient-to-br from-green-100 to-blue-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
+                                <p className="text-sm text-gray-600">Total a Cobrar</p>
+                                <p className="text-4xl font-bold text-green-600">${formatCurrency(totalUSD)}</p>
+                                <p className="text-lg text-gray-500">Bs. {formatCurrency(totalBS)}</p>
                             </div>
 
-                            <h2 className="text-2xl font-bold mb-2">
-                                {completedDocument.documentType === 'QUOTE' ? '¡Presupuesto Creado!' : '¡Pedido Creado!'}
-                            </h2>
-                            <p className="text-gray-600 dark:text-gray-400 mb-6">
-                                {completedDocument.documentType === 'QUOTE'
-                                    ? 'Puedes descargar el PDF o verlo en Caja'
-                                    : 'El cliente debe presentar este número en caja'
-                                }
-                            </p>
+                            {/* Payment Methods */}
+                            <div className="space-y-4">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500 mb-2">💵 Bolívares</p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                        {PAYMENT_METHODS_BS.map(method => (
+                                            <button
+                                                key={method.code}
+                                                onClick={() => setSelectedPaymentMethod(method.code)}
+                                                className={`p-3 rounded-xl border-2 text-center transition-all ${selectedPaymentMethod === method.code
+                                                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                                                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-400'
+                                                    }`}
+                                            >
+                                                <span className="text-2xl block mb-1">{method.icon}</span>
+                                                <span className="text-xs">{method.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
 
-                            <div className={`rounded-xl p-6 mb-6 ${completedDocument.documentType === 'QUOTE'
-                                ? 'bg-yellow-50 dark:bg-yellow-900/20'
-                                : 'bg-gray-100 dark:bg-gray-800'
-                                }`}>
-                                <p className="text-sm text-gray-500 mb-1">
-                                    {completedDocument.documentType === 'QUOTE' ? 'N° Presupuesto' : 'N° Pedido'}
-                                </p>
-                                <p className={`text-4xl font-bold tracking-wider ${completedDocument.documentType === 'QUOTE' ? 'text-yellow-600' : 'text-primary-600'
-                                    }`}>
-                                    {completedDocument.documentNumber}
-                                </p>
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500 mb-2">💲 USD / EUR</p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                        {PAYMENT_METHODS_USD.map(method => (
+                                            <button
+                                                key={method.code}
+                                                onClick={() => setSelectedPaymentMethod(method.code)}
+                                                className={`p-3 rounded-xl border-2 text-center transition-all ${selectedPaymentMethod === method.code
+                                                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                                                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-400'
+                                                    }`}
+                                            >
+                                                <span className="text-2xl block mb-1">{method.icon}</span>
+                                                <span className="text-xs">{method.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500 mb-2">🏦 Crédito / Financiamiento</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {PAYMENT_METHODS_CREDIT.map(method => (
+                                            <button
+                                                key={method.code}
+                                                onClick={() => setSelectedPaymentMethod(method.code)}
+                                                className={`p-3 rounded-xl border-2 text-center transition-all ${selectedPaymentMethod === method.code
+                                                    ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
+                                                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-400'
+                                                    }`}
+                                            >
+                                                <span className="text-2xl block mb-1">{method.icon}</span>
+                                                <span className="text-xs">{method.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Credit Days Input */}
+                                {selectedPaymentMethod === 'CREDIT_SALE' && (
+                                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
+                                        <label className="block text-sm font-medium mb-2">Días para el cobro:</label>
+                                        <div className="flex items-center gap-2">
+                                            {[15, 30, 45, 60].map(days => (
+                                                <button
+                                                    key={days}
+                                                    onClick={() => setCreditDays(days)}
+                                                    className={`px-4 py-2 rounded-lg font-bold ${creditDays === days
+                                                        ? 'bg-amber-500 text-white'
+                                                        : 'bg-white border border-gray-300 hover:border-amber-500'
+                                                        }`}
+                                                >
+                                                    {days}
+                                                </button>
+                                            ))}
+                                            <Input
+                                                type="number"
+                                                value={creditDays}
+                                                onChange={(e) => setCreditDays(parseInt(e.target.value) || 15)}
+                                                className="w-20"
+                                                min="1"
+                                            />
+                                            <span className="text-gray-500">días</span>
+                                        </div>
+                                        <p className="mt-2 text-sm text-amber-700">
+                                            Esto creará una Cuenta por Cobrar con vencimiento en {creditDays} días.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Reference Input */}
+                                {selectedPaymentMethod && selectedPaymentMethod !== 'CASH_USD' && selectedPaymentMethod !== 'CASH_BS' && selectedPaymentMethod !== 'CASH_EUR' && selectedPaymentMethod !== 'CREDIT_SALE' && (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">Referencia de pago:</label>
+                                        <Input
+                                            placeholder="Número de referencia..."
+                                            value={paymentReference}
+                                            onChange={(e) => setPaymentReference(e.target.value)}
+                                        />
+                                    </div>
+                                )}
                             </div>
+                        </Card>
+                    </div>
+                )}
 
-                            <div className="grid grid-cols-2 gap-4 mb-6">
-                                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
-                                    <p className="text-xs text-gray-500">Total USD</p>
-                                    <p className="text-xl font-bold text-green-600">
-                                        ${formatCurrency(completedDocument.totalUSD)}
-                                    </p>
-                                </div>
-                                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                                    <p className="text-xs text-gray-500">Total Bs</p>
-                                    <p className="text-xl font-bold text-blue-600">
-                                        Bs. {formatCurrency(completedDocument.totalBS)}
-                                    </p>
-                                </div>
+                {/* Step 5: Complete */}
+                {currentStep === 5 && completedSale && (
+                    <div className="max-w-lg mx-auto text-center">
+                        <Card className="p-8">
+                            <div className="w-20 h-20 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                                <Check className="w-10 h-10 text-green-600" />
+                            </div>
+                            <h2 className="text-2xl font-bold mb-2">¡Venta Completada!</h2>
+                            <p className="text-gray-500 mb-6">Documento #{completedSale.saleNumber}</p>
+
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl mb-6">
+                                <p className="text-3xl font-bold text-green-600">${formatCurrency(completedSale.totalUSD)}</p>
+                                <p className="text-gray-500">Bs. {formatCurrency(completedSale.totalBS)}</p>
                             </div>
 
                             <div className="flex gap-3">
-                                {completedDocument.documentType === 'QUOTE' ? (
-                                    <>
-                                        <Button
-                                            variant="outline"
-                                            onClick={generatePDF}
-                                            className="flex-1"
-                                        >
-                                            <FileDown className="w-4 h-4 mr-2" />
-                                            Descargar PDF
-                                        </Button>
-                                        <Button
-                                            onClick={clearAll}
-                                            className="flex-1"
-                                        >
-                                            Nuevo
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => window.print()}
-                                            className="flex-1"
-                                        >
-                                            <Printer className="w-4 h-4 mr-2" />
-                                            Imprimir
-                                        </Button>
-                                        <Button
-                                            onClick={clearAll}
-                                            className="flex-1"
-                                        >
-                                            Nuevo Pedido
-                                        </Button>
-                                    </>
-                                )}
+                                <Button variant="outline" className="flex-1" onClick={() => window.print()}>
+                                    🖨️ Imprimir
+                                </Button>
+                                <Button className="flex-1" onClick={clearCart}>
+                                    ➕ Nueva Venta
+                                </Button>
                             </div>
                         </Card>
                     </div>
                 )}
             </div>
 
-            {/* Bottom Navigation */}
-            {currentStep < 4 && (
+            {/* Navigation Footer */}
+            {currentStep < 5 && (
                 <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
-                    <div className="max-w-4xl mx-auto flex items-center justify-between">
+                    <div className="max-w-3xl mx-auto flex items-center justify-between">
                         <Button
                             variant="outline"
                             onClick={prevStep}
                             disabled={currentStep === 1}
-                            className="px-6"
                         >
-                            ← Anterior
+                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            Anterior
                         </Button>
 
                         <div className="text-center">
                             <p className="text-sm text-gray-500">Total</p>
-                            <p className="text-2xl font-bold text-green-600">${formatCurrency(totalUSD)}</p>
+                            <p className="text-xl font-bold text-green-600">${formatCurrency(totalUSD)}</p>
                         </div>
 
-                        <Button
-                            onClick={nextStep}
-                            disabled={!canProceed() || processing}
-                            className={`px-6 ${documentType === 'QUOTE' && currentStep === 3
-                                ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
-                                : 'bg-gradient-to-r from-blue-600 to-indigo-600'
-                                }`}
-                        >
-                            {processing ? (
-                                <span className="flex items-center gap-2">
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                    Procesando...
-                                </span>
-                            ) : currentStep === 3 ? (
-                                documentType === 'QUOTE' ? '📋 Crear Presupuesto' : '📦 Crear Pedido'
-                            ) : (
-                                'Siguiente →'
-                            )}
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {/* Image Expansion Modal */}
-            {expandedImage && (
-                <div
-                    className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-                    onClick={() => setExpandedImage(null)}
-                >
-                    <div
-                        className="relative max-w-4xl max-h-[90vh] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Close button */}
-                        <button
-                            onClick={() => setExpandedImage(null)}
-                            className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-                        >
-                            <X className="w-6 h-6" />
-                        </button>
-
-                        {/* Product name header */}
-                        <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/50 to-transparent p-4 pt-4 pb-12">
-                            <h3 className="text-white font-bold text-lg truncate pr-12">
-                                {expandedImage.name}
-                            </h3>
-                        </div>
-
-                        {/* Large image */}
-                        <div className="flex items-center justify-center p-8 pt-16 min-h-[300px] max-h-[80vh]">
-                            <img
-                                src={expandedImage.url}
-                                alt={expandedImage.name}
-                                className="max-w-full max-h-[70vh] object-contain rounded-lg"
-                                onError={(e) => {
-                                    (e.target as HTMLImageElement).src = ''
-                                    setExpandedImage(null)
-                                }}
-                            />
-                        </div>
-
-                        {/* Footer with close hint */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-4 text-center">
-                            <p className="text-white/70 text-sm">Click fuera o presiona X para cerrar</p>
-                        </div>
+                        {currentStep === 4 ? (
+                            <Button
+                                onClick={processSale}
+                                disabled={!canProceed() || processing}
+                                className="bg-green-600 hover:bg-green-700"
+                            >
+                                {processing ? 'Procesando...' : '✅ Confirmar Pago'}
+                            </Button>
+                        ) : (
+                            <Button
+                                onClick={nextStep}
+                                disabled={!canProceed()}
+                            >
+                                Siguiente
+                                <ChevronRight className="w-4 h-4 ml-1" />
+                            </Button>
+                        )}
                     </div>
                 </div>
             )}

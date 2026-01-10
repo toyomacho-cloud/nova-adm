@@ -64,6 +64,8 @@ model Company {
   bankAccounts     BankAccount[]
   reconciliations  Reconciliation[]
   onlineOrders     OnlineOrder[]
+  inventoryMovements InventoryMovement[]
+  inventoryChecks  InventoryCheck[]
   
   @@index([rif])
 
@@ -183,11 +185,86 @@ model Product {
   saleItems   SaleItem[]
   purchaseItems PurchaseItem[]
   onlineOrderItems OnlineOrderItem[]
+  inventoryMovements InventoryMovement[]
+  inventoryCheckItems InventoryCheckItem[]
   
   @@unique([companyId, sku])
   @@index([companyId])
   @@index([sku])
   @@index([category])
+}
+
+// ============================================
+// INVENTORY MOVEMENTS
+// ============================================
+
+model InventoryMovement {
+  id          String   @id @default(cuid())
+  companyId   String
+  productId   String
+  
+  type        String   // ENTRY, EXIT, ADJUSTMENT
+  quantity    Int
+  previousStock Int
+  newStock    Int
+  
+  reason      String?  // compra, venta, devolucion, ajuste, dano, etc.
+  reference   String?  // factura, orden, etc.
+  notes       String?
+  
+  userId      String
+  createdAt   DateTime @default(now())
+  
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
+  
+  @@index([companyId])
+  @@index([productId])
+  @@index([createdAt])
+}
+
+// ============================================
+// INVENTORY CHECKS (VERIFICATION)
+// ============================================
+
+model InventoryCheck {
+  id          String   @id @default(cuid())
+  companyId   String
+  
+  status      String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  totalItems  Int
+  checkedItems Int     @default(0)
+  matchedItems Int     @default(0)
+  discrepancies Int    @default(0)
+  
+  startedAt   DateTime?
+  completedAt DateTime?
+  userId      String
+  createdAt   DateTime @default(now())
+  
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items       InventoryCheckItem[]
+  
+  @@index([companyId])
+  @@index([createdAt])
+}
+
+model InventoryCheckItem {
+  id              String   @id @default(cuid())
+  checkId         String
+  productId       String
+  
+  expectedStock   Int
+  actualStock     Int?
+  isMatch         Boolean?
+  notes           String?
+  checkedAt       DateTime?
+  
+  check           InventoryCheck @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  product         Product        @relation(fields: [productId], references: [id])
+  
+  @@index([checkId])
+  @@index([productId])
 }
 
 // ============================================
@@ -315,12 +392,22 @@ model CashTransaction {
 model Sale {
   id              String   @id @default(cuid())
   companyId       String
-  customerId      String
+  customerId      String?  // Optional for quick sales
   userId          String
   
   saleNumber      String   // VEN-00001
-  invoiceNumber   String
-  invoiceDate     DateTime
+  invoiceNumber   String?  // Optional until converted to sale
+  invoiceDate     DateTime?
+  
+  // Document Type & Workflow
+  documentType    String   @default("SALE") // QUOTE, ORDER, SALE
+  quotedAt        DateTime?  // When quote was created
+  orderedAt       DateTime?  // When converted to order
+  paidAt          DateTime?  // When fully paid
+  
+  // Credit Sale Fields
+  creditDays      Int?       // Days for credit payment (15, 30, 45...)
+  dueDate         DateTime?  // Calculated due date for credit
   
   // Dual Currency Totals
   subtotalUSD     Float
@@ -332,22 +419,22 @@ model Sale {
   totalBS         Float
   
   // Payment
-  paymentMethodId String
-  paymentStatus   String @default("PENDING") // PENDING, PARTIAL, PAID
+  paymentMethodId String?  // Optional until payment
+  paymentStatus   String @default("PENDING") // PENDING, PARTIAL, PAID, CREDIT
   
   // BCV Rate used
   bcvRate         Float
   
-  status          String @default("COMPLETED") // COMPLETED, CANCELLED
+  status          String @default("DRAFT") // DRAFT, ACTIVE, COMPLETED, CANCELLED
   notes           String?
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
   company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer        Customer @relation(fields: [customerId], references: [id])
+  customer        Customer? @relation(fields: [customerId], references: [id])
   user            User @relation(fields: [userId], references: [id])
-  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
   
   items           SaleItem[]
   payments        SalePayment[]

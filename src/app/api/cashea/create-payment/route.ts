@@ -37,15 +37,18 @@ export async function POST(req: NextRequest) {
 
         // Create payment with Cashea
         const cashea = getCasheaAPI()
-        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+        let baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+        if (baseUrl.includes('Value: ')) {
+            baseUrl = baseUrl.split('Value: ')[1].trim()
+        }
 
         const payment = await cashea.createPayment({
             amount: parseFloat(amount),
             currency: currency || 'USD',
-            description: `Factura ${sale.invoiceNumber}`,
-            reference: sale.invoiceNumber,
-            customerEmail: customerEmail || sale.customer.email || '',
-            customerPhone: customerPhone || sale.customer.phone || '',
+            description: `Factura ${sale.invoiceNumber || sale.saleNumber}`,
+            reference: sale.invoiceNumber || sale.saleNumber,
+            customerEmail: customerEmail || sale.customer?.email || '',
+            customerPhone: customerPhone || sale.customer?.phone || '',
             callbackUrl: `${baseUrl}/api/cashea/webhook`,
             returnUrl: `${baseUrl}/dashboard/ventas?payment=success`,
         })

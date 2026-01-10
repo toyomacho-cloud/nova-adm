@@ -110,7 +110,10 @@ export async function POST(req: NextRequest) {
         let casheaPayment = null
         if (paymentMethod === 'cashea') {
             const cashea = getCasheaAPI()
-            const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+            let baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+            if (baseUrl.includes('Value: ')) {
+                baseUrl = baseUrl.split('Value: ')[1].trim()
+            }
 
             casheaPayment = await cashea.createPayment({
                 amount: total,
