@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import type { Cargo } from '@/lib/cargos'
+import { getNombreCargo } from '@/lib/cargos'
+
+// Cargos permitidos para gestionar clientes
+const CARGOS_GESTIONAR_CLIENTES: Cargo[] = ['PRESIDENTE', 'ADMINISTRADOR', 'VENDEDOR']
 
 // GET /api/customers - List all customers
 export async function GET(req: NextRequest) {
@@ -38,11 +43,25 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/customers - Create new customer
+// @requerir_cargo([Cargo.PRESIDENTE, Cargo.ADMINISTRADOR, Cargo.VENDEDOR])
 export async function POST(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions)
         if (!session?.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        // Verificar cargo para crear clientes
+        const cargoUsuario = session.user.role as Cargo
+        if (!CARGOS_GESTIONAR_CLIENTES.includes(cargoUsuario)) {
+            const nombreCargo = getNombreCargo(cargoUsuario)
+            return NextResponse.json(
+                {
+                    error: `Acceso denegado. Tu cargo de ${nombreCargo} no permite crear clientes.`,
+                    cargoRequerido: CARGOS_GESTIONAR_CLIENTES.map(getNombreCargo).join(', '),
+                },
+                { status: 403 }
+            )
         }
 
         const body = await req.json()

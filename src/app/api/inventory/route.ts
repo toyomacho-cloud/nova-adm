@@ -1,7 +1,14 @@
 'use server'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import type { Cargo } from '@/lib/cargos'
+import { getNombreCargo } from '@/lib/cargos'
+
+// Cargos permitidos para ajustar stock (equivalente a @requerir_cargo)
+const CARGOS_AJUSTAR_STOCK: Cargo[] = ['PRESIDENTE', 'ADMINISTRADOR', 'ALMACENISTA']
 
 const DEMO_COMPANY_ID = 'demo-company-id'
 const DEMO_USER_ID = 'demo-user-id'
@@ -98,8 +105,35 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - Create inventory movement
+// @requerir_cargo([Cargo.PRESIDENTE, Cargo.ADMINISTRADOR, Cargo.ALMACENISTA])
 export async function POST(request: NextRequest) {
     try {
+        // Verificar autenticación y cargo
+        const session = await getServerSession(authOptions)
+
+        if (!session?.user) {
+            return NextResponse.json(
+                { success: false, error: 'No autenticado. Por favor inicia sesión.' },
+                { status: 401 }
+            )
+        }
+
+        const cargoUsuario = session.user.role as Cargo
+
+        // Verificar si el cargo tiene permiso para ajustar stock
+        if (!CARGOS_AJUSTAR_STOCK.includes(cargoUsuario)) {
+            const nombreCargo = getNombreCargo(cargoUsuario)
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: `Acceso denegado. Tu cargo de ${nombreCargo} no permite ajustar el stock.`,
+                    cargoRequerido: CARGOS_AJUSTAR_STOCK.map(getNombreCargo).join(', '),
+                    cargoActual: nombreCargo,
+                },
+                { status: 403 }
+            )
+        }
+
         const body = await request.json()
         const { productId, type, quantity, reason, reference, notes } = body
 

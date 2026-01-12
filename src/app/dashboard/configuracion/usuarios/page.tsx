@@ -19,12 +19,50 @@ import {
     User,
     CheckCircle2,
     XCircle,
+    AlertTriangle,
 } from 'lucide-react'
 
 export default function UsuariosPage() {
     const [searchTerm, setSearchTerm] = useState('')
     const [showModal, setShowModal] = useState(false)
     const [selectedUser, setSelectedUser] = useState<any>(null)
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+    const [userToDelete, setUserToDelete] = useState<any>(null)
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [deleteMessage, setDeleteMessage] = useState('')
+
+    const handleDeleteClick = (user: any) => {
+        setUserToDelete(user)
+        setShowDeleteConfirm(true)
+        setDeleteMessage('')
+    }
+
+    const confirmDelete = async () => {
+        if (!userToDelete) return
+
+        setIsDeleting(true)
+        try {
+            const response = await fetch(`/api/users?id=${userToDelete.id}`, {
+                method: 'DELETE',
+            })
+
+            const data = await response.json()
+
+            if (response.ok) {
+                setDeleteMessage('Usuario eliminado correctamente')
+                // Reload page to refresh list
+                setTimeout(() => {
+                    window.location.reload()
+                }, 1000)
+            } else {
+                setDeleteMessage(data.error || 'Error al eliminar usuario')
+            }
+        } catch (error) {
+            setDeleteMessage('Error de conexión')
+        } finally {
+            setIsDeleting(false)
+        }
+    }
 
     return (
         <div className="space-y-6 animate-in">
@@ -150,10 +188,11 @@ export default function UsuariosPage() {
                                     <td>{user.email}</td>
                                     <td>
                                         <Badge variant={
-                                            user.role === 'ADMIN' ? 'danger' :
-                                                user.role === 'ACCOUNTANT' ? 'info' :
-                                                    user.role === 'CASHIER' ? 'warning' :
-                                                        'default'
+                                            user.role === 'PRESIDENTE' ? 'danger' :
+                                                user.role === 'ADMINISTRADOR' ? 'info' :
+                                                    user.role === 'CAJERA' ? 'warning' :
+                                                        user.role === 'VENDEDOR' ? 'success' :
+                                                            'default'
                                         }>
                                             <Shield className="w-3 h-3 mr-1" />
                                             {getRoleName(user.role)}
@@ -188,7 +227,10 @@ export default function UsuariosPage() {
                                             >
                                                 <Edit className="w-4 h-4" />
                                             </button>
-                                            <button className="p-2 hover:bg-danger-100 dark:hover:bg-danger-900/20 rounded-lg transition-colors text-danger-600">
+                                            <button
+                                                className="p-2 hover:bg-danger-100 dark:hover:bg-danger-900/20 rounded-lg transition-colors text-danger-600"
+                                                onClick={() => handleDeleteClick(user)}
+                                            >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -207,6 +249,55 @@ export default function UsuariosPage() {
                     onClose={() => setShowModal(false)}
                 />
             )}
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in">
+                    <Card variant="glass" className="w-full max-w-md">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-full bg-danger-100 dark:bg-danger-900/30 flex items-center justify-center">
+                                <AlertTriangle className="w-6 h-6 text-danger-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold">Eliminar Usuario</h3>
+                                <p className="text-sm text-gray-600">Esta acción no se puede deshacer</p>
+                            </div>
+                        </div>
+
+                        <p className="text-gray-700 dark:text-gray-300 mb-4">
+                            ¿Estás seguro de que deseas eliminar a <strong>{userToDelete?.name}</strong>?
+                        </p>
+
+                        {deleteMessage && (
+                            <div className={`p-3 rounded-lg mb-4 ${deleteMessage.includes('correctamente') ? 'bg-success-100 text-success-800' : 'bg-danger-100 text-danger-800'}`}>
+                                {deleteMessage}
+                            </div>
+                        )}
+
+                        <div className="flex gap-3">
+                            <Button
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => {
+                                    setShowDeleteConfirm(false)
+                                    setUserToDelete(null)
+                                }}
+                                disabled={isDeleting}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                variant="danger"
+                                className="flex-1"
+                                onClick={confirmDelete}
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? 'Eliminando...' : 'Eliminar'}
+                            </Button>
+                        </div>
+                    </Card>
+                </div>
+            )}
         </div>
     )
 }
@@ -215,12 +306,15 @@ function UserModal({ user, onClose }: { user: any; onClose: () => void }) {
     const [formData, setFormData] = useState({
         name: user?.name || '',
         email: user?.email || '',
-        role: user?.role || 'USER',
+        role: user?.role || 'VENDEDOR',
         password: '',
         confirmPassword: '',
         isActive: user?.isActive ?? true,
     })
     const [showPassword, setShowPassword] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
+    const [errorMessage, setErrorMessage] = useState('')
+    const [successMessage, setSuccessMessage] = useState('')
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target
@@ -230,11 +324,60 @@ function UserModal({ user, onClose }: { user: any; onClose: () => void }) {
         }))
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        // TODO: Implement user save logic
-        console.log('Saving user:', formData)
-        onClose()
+        setErrorMessage('')
+        setSuccessMessage('')
+
+        // Validation
+        if (!formData.name || !formData.email) {
+            setErrorMessage('Nombre y email son requeridos')
+            return
+        }
+
+        if (!user && !formData.password) {
+            setErrorMessage('La contraseña es requerida para usuarios nuevos')
+            return
+        }
+
+        if (!user && formData.password !== formData.confirmPassword) {
+            setErrorMessage('Las contraseñas no coinciden')
+            return
+        }
+
+        if (!user && formData.password.length < 8) {
+            setErrorMessage('La contraseña debe tener al menos 8 caracteres')
+            return
+        }
+
+        setIsSaving(true)
+        try {
+            const response = await fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: formData.name,
+                    email: formData.email,
+                    password: formData.password,
+                    role: formData.role,
+                }),
+            })
+
+            const data = await response.json()
+
+            if (response.ok) {
+                setSuccessMessage('Usuario creado correctamente')
+                setTimeout(() => {
+                    window.location.reload()
+                }, 1000)
+            } else {
+                setErrorMessage(data.error || 'Error al crear usuario')
+            }
+        } catch (error) {
+            setErrorMessage('Error de conexión')
+        } finally {
+            setIsSaving(false)
+        }
     }
 
     return (
@@ -285,11 +428,12 @@ function UserModal({ user, onClose }: { user: any; onClose: () => void }) {
                             className="input-modern"
                             required
                         >
-                            <option value="ADMIN">Administrador</option>
-                            <option value="ACCOUNTANT">Contador</option>
-                            <option value="CASHIER">Cajero</option>
-                            <option value="USER">Usuario</option>
-                            <option value="VIEWER">Visualizador</option>
+                            <option value="PRESIDENTE">Presidente</option>
+                            <option value="ADMINISTRADOR">Administrador</option>
+                            <option value="VENDEDOR">Vendedor</option>
+                            <option value="CAJERA">Cajera</option>
+                            <option value="ALMACENISTA">Almacenista</option>
+                            <option value="ASISTENTE">Asistente Administrativo</option>
                         </select>
                         <p className="mt-1 text-xs text-gray-500">
                             {getRoleDescription(formData.role)}
@@ -356,12 +500,24 @@ function UserModal({ user, onClose }: { user: any; onClose: () => void }) {
                         </label>
                     </div>
 
+                    {errorMessage && (
+                        <div className="p-3 rounded-lg bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-200">
+                            {errorMessage}
+                        </div>
+                    )}
+
+                    {successMessage && (
+                        <div className="p-3 rounded-lg bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-200">
+                            {successMessage}
+                        </div>
+                    )}
+
                     <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+                        <Button type="button" variant="outline" onClick={onClose} className="flex-1" disabled={isSaving}>
                             Cancelar
                         </Button>
-                        <Button type="submit" variant="primary" className="flex-1">
-                            {user ? 'Guardar Cambios' : 'Crear Usuario'}
+                        <Button type="submit" variant="primary" className="flex-1" disabled={isSaving}>
+                            {isSaving ? 'Guardando...' : (user ? 'Guardar Cambios' : 'Crear Usuario')}
                         </Button>
                     </div>
                 </form>
@@ -372,37 +528,39 @@ function UserModal({ user, onClose }: { user: any; onClose: () => void }) {
 
 function getRoleName(role: string): string {
     const roles: Record<string, string> = {
-        ADMIN: 'Administrador',
-        ACCOUNTANT: 'Contador',
-        CASHIER: 'Cajero',
-        USER: 'Usuario',
-        VIEWER: 'Visualizador',
+        PRESIDENTE: 'Presidente',
+        ADMINISTRADOR: 'Administrador',
+        VENDEDOR: 'Vendedor',
+        CAJERA: 'Cajera',
+        ALMACENISTA: 'Almacenista',
+        ASISTENTE: 'Asistente Administrativo',
     }
     return roles[role] || role
 }
 
 function getRoleDescription(role: string): string {
     const descriptions: Record<string, string> = {
-        ADMIN: 'Acceso total al sistema, gestión de usuarios y configuración',
-        ACCOUNTANT: 'Acceso a módulos contables, ventas, compras y retenciones',
-        CASHIER: 'Acceso a caja y registro de ventas',
-        USER: 'Acceso básico a consultas y reportes',
-        VIEWER: 'Solo visualización, sin permisos de edición',
+        PRESIDENTE: 'Acceso total al sistema, gestión de usuarios y configuración general',
+        ADMINISTRADOR: 'Gestión general, ventas, compras, inventario y reportes',
+        VENDEDOR: 'Punto de venta, gestión de clientes y consulta de inventario',
+        CAJERA: 'Gestión de caja, cobros y punto de venta',
+        ALMACENISTA: 'Control de inventario, productos y movimientos de stock',
+        ASISTENTE: 'Visualización de reportes y funciones de soporte',
     }
     return descriptions[role] || ''
 }
 
 const users = [
-    { id: 'U001', name: 'Juan Pérez', email: 'juan@empresa.com', role: 'ADMIN', isActive: true, lastAccess: 'Hace 2 horas' },
-    { id: 'U002', name: 'María González', email: 'maria@empresa.com', role: 'ACCOUNTANT', isActive: true, lastAccess: 'Hace 1 día' },
-    { id: 'U003', name: 'Carlos Rodríguez', email: 'carlos@empresa.com', role: 'ADMIN', isActive: true, lastAccess: 'Hace 3 horas' },
-    { id: 'U004', name: 'Ana Martínez', email: 'ana@empresa.com', role: 'CASHIER', isActive: true, lastAccess: 'Hace 30 min' },
-    { id: 'U005', name: 'Pedro Sánchez', email: 'pedro@empresa.com', role: 'USER', isActive: true, lastAccess: 'Hace 5 horas' },
-    { id: 'U006', name: 'Laura Fernández', email: 'laura@empresa.com', role: 'ACCOUNTANT', isActive: false, lastAccess: 'Hace 15 días' },
-    { id: 'U007', name: 'Diego Torres', email: 'diego@empresa.com', role: 'CASHIER', isActive: true, lastAccess: 'Hace 1 hora' },
-    { id: 'U008', name: 'Carmen López', email: 'carmen@empresa.com', role: 'USER', isActive: true, lastAccess: 'Hace 2 días' },
-    { id: 'U009', name: 'Roberto Díaz', email: 'roberto@empresa.com', role: 'ADMIN', isActive: true, lastAccess: 'Hace 4 horas' },
-    { id: 'U010', name: 'Sofia Castro', email: 'sofia@empresa.com', role: 'VIEWER', isActive: true, lastAccess: 'Hace 6 horas' },
-    { id: 'U011', name: 'Luis Ramírez', email: 'luis@empresa.com', role: 'USER', isActive: true, lastAccess: 'Hace 8 horas' },
-    { id: 'U012', name: 'Patricia Morales', email: 'patricia@empresa.com', role: 'ACCOUNTANT', isActive: false, lastAccess: 'Hace 30 días' },
+    { id: 'U001', name: 'Marcos Toyota', email: 'marcos@empresa.com', role: 'PRESIDENTE', isActive: true, lastAccess: 'Hace 2 horas' },
+    { id: 'U002', name: 'María González', email: 'maria@empresa.com', role: 'ADMINISTRADOR', isActive: true, lastAccess: 'Hace 1 día' },
+    { id: 'U003', name: 'Carlos Rodríguez', email: 'carlos@empresa.com', role: 'VENDEDOR', isActive: true, lastAccess: 'Hace 3 horas' },
+    { id: 'U004', name: 'Ana Martínez', email: 'ana@empresa.com', role: 'CAJERA', isActive: true, lastAccess: 'Hace 30 min' },
+    { id: 'U005', name: 'Pedro Sánchez', email: 'pedro@empresa.com', role: 'ALMACENISTA', isActive: true, lastAccess: 'Hace 5 horas' },
+    { id: 'U006', name: 'Laura Fernández', email: 'laura@empresa.com', role: 'ASISTENTE', isActive: false, lastAccess: 'Hace 15 días' },
+    { id: 'U007', name: 'Diego Torres', email: 'diego@empresa.com', role: 'CAJERA', isActive: true, lastAccess: 'Hace 1 hora' },
+    { id: 'U008', name: 'Carmen López', email: 'carmen@empresa.com', role: 'VENDEDOR', isActive: true, lastAccess: 'Hace 2 días' },
+    { id: 'U009', name: 'Roberto Díaz', email: 'roberto@empresa.com', role: 'ADMINISTRADOR', isActive: true, lastAccess: 'Hace 4 horas' },
+    { id: 'U010', name: 'Sofia Castro', email: 'sofia@empresa.com', role: 'ASISTENTE', isActive: true, lastAccess: 'Hace 6 horas' },
+    { id: 'U011', name: 'Luis Ramírez', email: 'luis@empresa.com', role: 'ALMACENISTA', isActive: true, lastAccess: 'Hace 8 horas' },
+    { id: 'U012', name: 'Patricia Morales', email: 'patricia@empresa.com', role: 'VENDEDOR', isActive: false, lastAccess: 'Hace 30 días' },
 ]

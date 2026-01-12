@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import type { Cargo } from '@/lib/cargos'
+import { getNombreCargo } from '@/lib/cargos'
+
+// Cargos permitidos para crear/editar productos
+const CARGOS_GESTIONAR_PRODUCTOS: Cargo[] = ['PRESIDENTE', 'ADMINISTRADOR', 'ALMACENISTA']
 
 // GET /api/products - List all products with pagination
 export async function GET(req: NextRequest) {
@@ -88,11 +93,25 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/products - Create new product
+// @requerir_cargo([Cargo.PRESIDENTE, Cargo.ADMINISTRADOR, Cargo.ALMACENISTA])
 export async function POST(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions)
         if (!session?.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        // Verificar cargo para gestionar productos
+        const cargoUsuario = session.user.role as Cargo
+        if (!CARGOS_GESTIONAR_PRODUCTOS.includes(cargoUsuario)) {
+            const nombreCargo = getNombreCargo(cargoUsuario)
+            return NextResponse.json(
+                {
+                    error: `Acceso denegado. Tu cargo de ${nombreCargo} no permite crear productos.`,
+                    cargoRequerido: CARGOS_GESTIONAR_PRODUCTOS.map(getNombreCargo).join(', '),
+                },
+                { status: 403 }
+            )
         }
 
         const body = await req.json()

@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import type { Cargo } from '@/lib/cargos'
+import { getNombreCargo } from '@/lib/cargos'
+
+// Cargos permitidos para registrar compras
+const CARGOS_REGISTRAR_COMPRA: Cargo[] = ['PRESIDENTE', 'ADMINISTRADOR']
 
 // GET /api/purchases - List purchases
 export async function GET(req: NextRequest) {
@@ -28,11 +33,25 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/purchases - Create purchase
+// @requerir_cargo([Cargo.PRESIDENTE, Cargo.ADMINISTRADOR])
 export async function POST(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions)
         if (!session?.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        // Verificar cargo para registrar compras
+        const cargoUsuario = session.user.role as Cargo
+        if (!CARGOS_REGISTRAR_COMPRA.includes(cargoUsuario)) {
+            const nombreCargo = getNombreCargo(cargoUsuario)
+            return NextResponse.json(
+                {
+                    error: `Acceso denegado. Tu cargo de ${nombreCargo} no permite registrar compras.`,
+                    cargoRequerido: CARGOS_REGISTRAR_COMPRA.map(getNombreCargo).join(', '),
+                },
+                { status: 403 }
+            )
         }
 
         const body = await req.json()

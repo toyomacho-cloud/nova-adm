@@ -2,13 +2,33 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import type { Cargo } from '@/lib/cargos'
+import { getNombreCargo } from '@/lib/cargos'
+
+// Cargos permitidos para procesar ventas (equivalente a @requerir_cargo)
+const CARGOS_PROCESAR_VENTA: Cargo[] = ['PRESIDENTE', 'VENDEDOR', 'CAJERA']
 
 // POST /api/sales - Create new sale or order
+// @requerir_cargo([Cargo.PRESIDENTE, Cargo.VENDEDOR, Cargo.CAJERA])
 export async function POST(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions)
         if (!session?.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        // Verificar cargo para procesar ventas
+        const cargoUsuario = session.user.role as Cargo
+        if (!CARGOS_PROCESAR_VENTA.includes(cargoUsuario)) {
+            const nombreCargo = getNombreCargo(cargoUsuario)
+            return NextResponse.json(
+                {
+                    error: `Acceso denegado. Tu cargo de ${nombreCargo} no permite procesar ventas.`,
+                    cargoRequerido: CARGOS_PROCESAR_VENTA.map(getNombreCargo).join(', '),
+                    cargoActual: nombreCargo,
+                },
+                { status: 403 }
+            )
         }
 
         const body = await req.json()

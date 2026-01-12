@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import {
     ShoppingCart, Search, Plus, Minus, Trash2, User, FileText,
-    CreditCard, Check, ChevronRight, ChevronLeft, Package, X
+    CreditCard, Check, ChevronRight, ChevronLeft, Package, X, Maximize2
 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -16,6 +16,8 @@ interface Product {
     name: string
     reference?: string
     location?: string
+    brand?: string
+    image?: string
     priceUSD: number
     costUSD: number
     stock: number
@@ -105,6 +107,9 @@ export default function PuntoDeVentaPage() {
     const [documentType, setDocumentType] = useState<'QUOTE' | 'ORDER' | 'SALE'>('SALE')
     const [processing, setProcessing] = useState(false)
     const [completedSale, setCompletedSale] = useState<any>(null)
+
+    // Expanded product for detail view
+    const [expandedProduct, setExpandedProduct] = useState<Product | null>(null)
 
     // Fetch products
     useEffect(() => {
@@ -309,8 +314,8 @@ export default function PuntoDeVentaPage() {
                         <button
                             onClick={() => setRateType('BCV')}
                             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${rateType === 'BCV'
-                                    ? 'bg-white dark:bg-gray-600 text-green-600 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'bg-white dark:bg-gray-600 text-green-600 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             BCV: {formatCurrency(rates.bcv)}
@@ -318,8 +323,8 @@ export default function PuntoDeVentaPage() {
                         <button
                             onClick={() => setRateType('BINANCE')}
                             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${rateType === 'BINANCE'
-                                    ? 'bg-white dark:bg-gray-600 text-yellow-600 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'bg-white dark:bg-gray-600 text-yellow-600 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             Paralelo: {formatCurrency(rates.binance)}
@@ -381,27 +386,63 @@ export default function PuntoDeVentaPage() {
                                         </div>
                                     ) : (
                                         filteredProducts.map(product => (
-                                            <button
+                                            <div
                                                 key={product.id}
-                                                onClick={() => addToCart(product)}
-                                                disabled={product.stock <= 0}
-                                                className={`p-3 rounded-xl text-left transition-all border-2 ${product.stock <= 0
-                                                    ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
-                                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary-500 hover:shadow-md'
+                                                className={`rounded-xl overflow-hidden transition-all border-2 ${product.stock <= 0
+                                                    ? 'bg-gray-100 border-gray-200 opacity-50'
+                                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary-500 hover:shadow-lg'
                                                     }`}
                                             >
-                                                <div className="flex items-center justify-between mb-1">
-                                                    <span className="text-xs text-gray-500 truncate">{product.reference || product.sku}</span>
-                                                    <span className={`text-xs px-1.5 py-0.5 rounded ${product.stock <= 0 ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                {/* Product Image */}
+                                                <div className="relative h-24 bg-gray-100 dark:bg-gray-700">
+                                                    {product.image ? (
+                                                        <img
+                                                            src={product.image}
+                                                            alt={product.name}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <Package className="w-8 h-8 text-gray-400" />
+                                                        </div>
+                                                    )}
+                                                    {/* Stock Badge */}
+                                                    <span className={`absolute top-2 right-2 text-xs px-1.5 py-0.5 rounded font-bold ${product.stock <= 0 ? 'bg-red-500 text-white' : product.stock <= 5 ? 'bg-yellow-500 text-black' : 'bg-blue-500 text-white'}`}>
                                                         {product.stock}
                                                     </span>
+                                                    {/* Expand Button */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setExpandedProduct(product)
+                                                        }}
+                                                        className="absolute top-2 left-2 p-1.5 rounded-lg bg-white/80 hover:bg-white text-gray-700 transition-all"
+                                                    >
+                                                        <Maximize2 className="w-4 h-4" />
+                                                    </button>
                                                 </div>
-                                                <p className="font-medium text-sm truncate mb-1">{product.name}</p>
-                                                {product.location && (
-                                                    <p className="text-xs text-orange-600 truncate mb-1">📍 {product.location}</p>
-                                                )}
-                                                <p className="font-bold text-green-600 text-lg">${formatCurrency(product.priceUSD)}</p>
-                                            </button>
+                                                {/* Product Info */}
+                                                <button
+                                                    onClick={() => addToCart(product)}
+                                                    disabled={product.stock <= 0}
+                                                    className="w-full p-3 text-left"
+                                                >
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="text-xs text-gray-500 truncate">{product.reference || product.sku}</span>
+                                                    </div>
+                                                    <p className="font-medium text-sm truncate mb-1">{product.name}</p>
+                                                    {product.brand && (
+                                                        <p className="text-xs text-purple-600 font-medium truncate mb-1">🏷️ {product.brand}</p>
+                                                    )}
+                                                    {product.location && (
+                                                        <p className="text-xs text-orange-600 truncate mb-1">📍 {product.location}</p>
+                                                    )}
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="font-bold text-green-600 text-lg">${formatCurrency(product.priceUSD)}</p>
+                                                        <span className="text-xs text-gray-500">Bs. {formatCurrency(product.priceUSD * exchangeRate)}</span>
+                                                    </div>
+                                                </button>
+                                            </div>
                                         ))
                                     )}
                                 </div>
@@ -497,6 +538,103 @@ export default function PuntoDeVentaPage() {
                                 )}
                             </Card>
                         </div>
+                    </div>
+                )}
+
+                {/* Expanded Product Modal */}
+                {expandedProduct && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in">
+                        <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                            <div className="relative">
+                                {/* Close Button */}
+                                <button
+                                    onClick={() => setExpandedProduct(null)}
+                                    className="absolute top-4 right-4 p-2 rounded-full bg-white/80 hover:bg-white text-gray-700 z-10"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+
+                                {/* Large Image */}
+                                <div className="aspect-video bg-gray-100 dark:bg-gray-800 relative">
+                                    {expandedProduct.image ? (
+                                        <img
+                                            src={expandedProduct.image}
+                                            alt={expandedProduct.name}
+                                            className="w-full h-full object-contain"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <Package className="w-20 h-20 text-gray-400" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Product Details */}
+                                <div className="p-6">
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div>
+                                            <p className="text-sm text-gray-500 mb-1">{expandedProduct.sku}</p>
+                                            <h2 className="text-2xl font-bold">{expandedProduct.name}</h2>
+                                            {expandedProduct.reference && (
+                                                <p className="text-gray-500">Ref: {expandedProduct.reference}</p>
+                                            )}
+                                        </div>
+                                        <span className={`text-lg px-3 py-1 rounded-full font-bold ${expandedProduct.stock <= 0 ? 'bg-red-100 text-red-600' : expandedProduct.stock <= 5 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-600'}`}>
+                                            Stock: {expandedProduct.stock}
+                                        </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        {expandedProduct.brand && (
+                                            <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                                                <p className="text-xs text-purple-600 font-medium">Marca</p>
+                                                <p className="font-bold text-purple-700">{expandedProduct.brand}</p>
+                                            </div>
+                                        )}
+                                        {expandedProduct.location && (
+                                            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                                                <p className="text-xs text-orange-600 font-medium">Ubicación</p>
+                                                <p className="font-bold text-orange-700">{expandedProduct.location}</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-gray-800 dark:to-gray-900 rounded-xl mb-6">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm text-gray-500">Precio USD</p>
+                                                <p className="text-3xl font-bold text-green-600">${formatCurrency(expandedProduct.priceUSD)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-500">Precio Bs ({rateType})</p>
+                                                <p className="text-2xl font-bold text-blue-600">Bs. {formatCurrency(expandedProduct.priceUSD * exchangeRate)}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setExpandedProduct(null)}
+                                            className="flex-1"
+                                        >
+                                            Cerrar
+                                        </Button>
+                                        <Button
+                                            onClick={() => {
+                                                addToCart(expandedProduct)
+                                                setExpandedProduct(null)
+                                            }}
+                                            disabled={expandedProduct.stock <= 0}
+                                            className="flex-1 bg-green-600 hover:bg-green-700"
+                                        >
+                                            <Plus className="w-4 h-4 mr-2" />
+                                            Agregar al Carrito
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
                     </div>
                 )}
 

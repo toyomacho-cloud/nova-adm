@@ -95,7 +95,7 @@ model User {
   @@index([email])
 }
 
-// UserRole values: ADMIN, ACCOUNTANT, CASHIER, USER, VIEWER
+// Cargo values: PRESIDENTE, ADMINISTRADOR, VENDEDOR, CAJERA, ALMACENISTA, ASISTENTE
 
 // ============================================
 // CUSTOMERS & VENDORS
